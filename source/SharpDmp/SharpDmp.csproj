@@ -7,4 +7,7 @@
         <WarningsAsErrors>true</WarningsAsErrors>
     </PropertyGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="SharpDmp.UnitTests" />
+    </ItemGroup>
 </Project>
