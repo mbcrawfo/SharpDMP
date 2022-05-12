@@ -6,6 +6,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{6E0A01EF
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpDmp.Reference", "source\SharpDmp.Reference\SharpDmp.Reference.csproj", "{38E95483-6F50-4862-BFF3-C3594C957AA1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpDmp", "source\SharpDmp\SharpDmp.csproj", "{0ADF6154-FA4A-4371-A2F3-B8921CB8F733}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpDmp.UnitTests", "tests\SharpDmp.UnitTests\SharpDmp.UnitTests.csproj", "{438213FE-4D94-45E8-A5D9-1FA4542C19E2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -16,8 +20,18 @@ Global
 		{38E95483-6F50-4862-BFF3-C3594C957AA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{38E95483-6F50-4862-BFF3-C3594C957AA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{38E95483-6F50-4862-BFF3-C3594C957AA1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0ADF6154-FA4A-4371-A2F3-B8921CB8F733}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0ADF6154-FA4A-4371-A2F3-B8921CB8F733}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0ADF6154-FA4A-4371-A2F3-B8921CB8F733}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0ADF6154-FA4A-4371-A2F3-B8921CB8F733}.Release|Any CPU.Build.0 = Release|Any CPU
+		{438213FE-4D94-45E8-A5D9-1FA4542C19E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{438213FE-4D94-45E8-A5D9-1FA4542C19E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{438213FE-4D94-45E8-A5D9-1FA4542C19E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{438213FE-4D94-45E8-A5D9-1FA4542C19E2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{38E95483-6F50-4862-BFF3-C3594C957AA1} = {6EFFD008-0C62-4219-9DD3-CB295FD1E2CB}
+		{0ADF6154-FA4A-4371-A2F3-B8921CB8F733} = {6EFFD008-0C62-4219-9DD3-CB295FD1E2CB}
+		{438213FE-4D94-45E8-A5D9-1FA4542C19E2} = {6E0A01EF-D1B4-469A-8EF2-5695F0CCC549}
 	EndGlobalSection
 EndGlobal
