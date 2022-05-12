@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections;
+using System.Linq;
+using System.Text;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using SharpDmp.Data;
@@ -208,5 +210,151 @@ public class ReadOnlySpanExtensionsTests
         result.Text2Prefix.ToString().Should().Be(expectedText2Prefix);
         result.Text2Suffix.ToString().Should().Be(expectedText2Suffix);
         result.CommonMiddle.ToString().Should().Be(expectedCommonMiddle);
+    }
+
+    public static IEnumerable LinesToCharsEncodingTestCases =>
+        new object[]
+        {
+            new object[]
+            {
+                "alpha\nbeta\nalpha\n",
+                "beta\nalpha\nbeta\n",
+                new[] { 1, 2, 1 },
+                new[] { 2, 1, 2 },
+                new[] { "", "alpha\n", "beta\n" }
+            },
+            new object[]
+            {
+                "",
+                "alpha\r\nbeta\r\n\r\n\r\n",
+                Array.Empty<int>(),
+                new[] { 1, 2, 3, 3 },
+                new[] { "", "alpha\r\n", "beta\r\n", "\r\n" }
+            },
+            new object[] { "a", "b", new[] { 1 }, new[] { 2 }, new[] { "", "a", "b" } },
+        };
+
+    [Theory]
+    [MemberData(nameof(LinesToCharsEncodingTestCases))]
+    public void LinesToChars_ShouldEncodeInputsByTheirUniqueStrings(
+        string text1,
+        string text2,
+        int[] expectedEncodedText1,
+        int[] expectedEncodedText2,
+        string[] expectedUniqueStrings
+    )
+    {
+        // arrange
+        // act
+        var (actualEncodedText1, actualEncodedText2, actualUniqueStrings) = text1.AsSpan().LinesToChars(text2);
+
+        // assert
+        using var _ = new AssertionScope();
+        actualEncodedText1.Should().ContainInOrder(expectedEncodedText1);
+        actualEncodedText2.Should().ContainInOrder(expectedEncodedText2);
+        actualUniqueStrings.Should().ContainInOrder(expectedUniqueStrings);
+    }
+
+    [Fact]
+    public void LinesToChars_ShouldEncodeInputs_WhenBothInputsHaveTooManyLines()
+    {
+        // arrange
+        const int numberOfLines = 65540;
+        const int text1MaxLines = 40000;
+        const int text2MaxLines = 65535;
+        var sb = new StringBuilder(numberOfLines * 2);
+        foreach (var i in Enumerable.Range(1, numberOfLines))
+        {
+            sb.Append(i).Append('\n');
+        }
+
+        var text = sb.ToString();
+        var expectedLastStringText1 =
+            string.Join('\n', Enumerable.Range(text1MaxLines, numberOfLines - text1MaxLines + 1)) + "\n";
+        var expectedLastStringText2 =
+            string.Join('\n', Enumerable.Range(text2MaxLines - 1, numberOfLines - text2MaxLines + 2)) + "\n";
+
+        // act
+        var (actualEncodedText1, actualEncodedText2, actualUniqueStrings) = text.AsSpan().LinesToChars(text);
+
+        // assert
+        using var _ = new AssertionScope();
+        actualEncodedText1.Should().HaveCount(text1MaxLines).And.Subject.Should().EndWith(text1MaxLines);
+        actualEncodedText2.Should().HaveCount(text2MaxLines - 1).And.Subject.Should().EndWith(text2MaxLines);
+        actualUniqueStrings
+            .Should()
+            .HaveCount(text2MaxLines + 1)
+            .And.Subject.Should()
+            .HaveElementAt(actualEncodedText1[^1], expectedLastStringText1)
+            .And.Subject.Should()
+            .EndWith(expectedLastStringText2);
+    }
+
+    [Fact]
+    public void LinesToChars_ShouldEncodeInputs_WhenText1HasTooManyLines()
+    {
+        // arrange
+        const int numberOfLines = 40005;
+        const int maxLines = 40000;
+        var sb = new StringBuilder(numberOfLines * 2);
+        foreach (var i in Enumerable.Range(1, numberOfLines))
+        {
+            sb.Append(i).Append('\n');
+        }
+
+        var text1 = sb.ToString();
+        var expectedLastUniqueString =
+            string.Join('\n', Enumerable.Range(maxLines, numberOfLines - maxLines + 1)) + "\n";
+
+        // act
+        var (actualEncodedText1, _, actualUniqueStrings) = text1.AsSpan().LinesToChars("");
+
+        // assert
+        using var _ = new AssertionScope();
+        actualEncodedText1.Should().HaveCount(maxLines).And.Subject.Should().EndWith(maxLines);
+        actualUniqueStrings.Should().HaveCount(maxLines + 1).And.Subject.Should().EndWith(expectedLastUniqueString);
+    }
+
+    [Fact]
+    public void LinesToChars_ShouldEncodeInputs_WhenText2HasTooManyLines()
+    {
+        // arrange
+        const int numberOfLines = 65540;
+        const int maxLines = 65535;
+        var sb = new StringBuilder(numberOfLines * 2);
+        foreach (var i in Enumerable.Range(1, numberOfLines))
+        {
+            sb.Append(i).Append('\n');
+        }
+
+        var text2 = sb.ToString();
+        var expectedLastUniqueString =
+            string.Join('\n', Enumerable.Range(maxLines, numberOfLines - maxLines + 1)) + "\n";
+
+        // act
+        var (_, actualEncodedText2, actualUniqueStrings) = "".AsSpan().LinesToChars(text2);
+
+        // assert
+        using var _ = new AssertionScope();
+        actualEncodedText2.Should().HaveCount(maxLines).And.Subject.Should().EndWith(maxLines);
+        actualUniqueStrings.Should().HaveCount(maxLines + 1).And.Subject.Should().EndWith(expectedLastUniqueString);
+    }
+
+    [Fact]
+    public void LinesToChars_ShouldEncodeInputsByTheirUniqueStrings_WhenInputContainsMoreThan256Lines()
+    {
+        // arrange
+        const int numberOfLines = 300;
+        var text1 = string.Join('\n', Enumerable.Range(1, numberOfLines)) + "\n";
+        var expectedUniqueStrings = Enumerable.Range(1, numberOfLines).Select(i => i + "\n").Prepend("");
+
+        // act
+        var (actualEncodedText1, actualEncodedText2, actualUniqueStrings) = text1.AsSpan().LinesToChars("");
+
+        // assert
+        using var _ = new AssertionScope();
+        actualEncodedText1.Should().ContainInOrder(Enumerable.Range(1, numberOfLines));
+        actualEncodedText2.Should().BeEmpty();
+        actualUniqueStrings.Should().ContainInOrder(expectedUniqueStrings);
     }
 }

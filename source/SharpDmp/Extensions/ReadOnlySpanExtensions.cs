@@ -6,58 +6,6 @@ namespace SharpDmp.Extensions;
 public static class ReadOnlySpanExtensions
 {
     /// <summary>
-    ///     Determines the common prefix of two strings.
-    /// </summary>
-    /// <remarks>
-    ///     Performance analysis:  https://neil.fraser.name/news/2010/11/04/
-    /// </remarks>
-    /// <param name="text1"></param>
-    /// <param name="text2"></param>
-    /// <returns>
-    ///     The number of characters in common at the start of each string.
-    /// </returns>
-    public static int FindCommonPrefix(this ReadOnlySpan<char> text1, ReadOnlySpan<char> text2)
-    {
-        var lengthToCheck = Math.Min(text1.Length, text2.Length);
-
-        for (var i = 0; i < lengthToCheck; i++)
-        {
-            if (text1[i] != text2[i])
-            {
-                return i;
-            }
-        }
-
-        return lengthToCheck;
-    }
-
-    /// <summary>
-    ///     Determines the common suffix of two strings.
-    /// </summary>
-    /// <remarks>
-    ///     Performance analysis:  https://neil.fraser.name/news/2010/11/04/
-    /// </remarks>
-    /// <param name="text1"></param>
-    /// <param name="text2"></param>
-    /// <returns>
-    ///     The number of characters in common at the end of each string.
-    /// </returns>
-    public static int FindCommonSuffix(this ReadOnlySpan<char> text1, ReadOnlySpan<char> text2)
-    {
-        var lengthToCheck = Math.Min(text1.Length, text2.Length);
-
-        for (var i = 1; i <= lengthToCheck; i++)
-        {
-            if (text1[^i] != text2[^i])
-            {
-                return i - 1;
-            }
-        }
-
-        return lengthToCheck;
-    }
-
-    /// <summary>
     ///     Determines if the suffix of the first string is the prefix of the second string.
     /// </summary>
     /// <remarks>
@@ -115,6 +63,58 @@ public static class ReadOnlySpanExtensions
     }
 
     /// <summary>
+    ///     Determines the common prefix of two strings.
+    /// </summary>
+    /// <remarks>
+    ///     Performance analysis:  https://neil.fraser.name/news/2010/11/04/
+    /// </remarks>
+    /// <param name="text1"></param>
+    /// <param name="text2"></param>
+    /// <returns>
+    ///     The number of characters in common at the start of each string.
+    /// </returns>
+    public static int FindCommonPrefix(this ReadOnlySpan<char> text1, ReadOnlySpan<char> text2)
+    {
+        var lengthToCheck = Math.Min(text1.Length, text2.Length);
+
+        for (var i = 0; i < lengthToCheck; i++)
+        {
+            if (text1[i] != text2[i])
+            {
+                return i;
+            }
+        }
+
+        return lengthToCheck;
+    }
+
+    /// <summary>
+    ///     Determines the common suffix of two strings.
+    /// </summary>
+    /// <remarks>
+    ///     Performance analysis:  https://neil.fraser.name/news/2010/11/04/
+    /// </remarks>
+    /// <param name="text1"></param>
+    /// <param name="text2"></param>
+    /// <returns>
+    ///     The number of characters in common at the end of each string.
+    /// </returns>
+    public static int FindCommonSuffix(this ReadOnlySpan<char> text1, ReadOnlySpan<char> text2)
+    {
+        var lengthToCheck = Math.Min(text1.Length, text2.Length);
+
+        for (var i = 1; i <= lengthToCheck; i++)
+        {
+            if (text1[^i] != text2[^i])
+            {
+                return i - 1;
+            }
+        }
+
+        return lengthToCheck;
+    }
+
+    /// <summary>
     ///     Do the two strings share a substring which is at least half the length of the the longer text?
     /// </summary>
     /// <remarks>
@@ -166,8 +166,27 @@ public static class ReadOnlySpanExtensions
     }
 
     /// <summary>
-    ///     Does a substring of <paramref name="shortText"/> exist within <paramref name="longText"/> such that the
-    ///     substring is at least half the length of <paramref name="longText"/>?
+    ///     Split two texts into a list of strings.  Reduce the texts to a list of hashes where each hash represents
+    ///     one line.
+    /// </summary>
+    /// <param name="text1"></param>
+    /// <param name="text2"></param>
+    /// <returns></returns>
+    internal static EncodedLines LinesToChars(this ReadOnlySpan<char> text1, ReadOnlySpan<char> text2)
+    {
+        var lineArray = new List<string> { string.Empty };
+        var lineHash = new Dictionary<string, int> { { string.Empty, 0 } };
+
+        return new(
+            LinesToCharsMunge(text1, lineArray, lineHash, 40000),
+            LinesToCharsMunge(text2, lineArray, lineHash, 65535),
+            lineArray.AsReadOnly()
+        );
+    }
+
+    /// <summary>
+    ///     Does a substring of <paramref name="shortText" /> exist within <paramref name="longText" /> such that the
+    ///     substring is at least half the length of <paramref name="longText" />?
     /// </summary>
     /// <param name="longText"></param>
     /// <param name="shortText"></param>
@@ -225,5 +244,59 @@ public static class ReadOnlySpanExtensions
         {
             result = new(bestLongTextA, bestLongTextB, bestShortTextA, bestShortTextB, bestCommon);
         }
+    }
+
+    /// <summary>
+    ///     Split a text into a list of strings.  Reduce the text to a list of hashes where each hash represents
+    ///     one line.
+    /// </summary>
+    /// <param name="text"></param>
+    /// <param name="lineArray"></param>
+    /// <param name="lineHash"></param>
+    /// <param name="maxLines"></param>
+    /// <returns></returns>
+    private static IReadOnlyList<int> LinesToCharsMunge(
+        ReadOnlySpan<char> text,
+        ICollection<string> lineArray,
+        IDictionary<string, int> lineHash,
+        int maxLines
+    )
+    {
+        var lineStart = 0;
+        var lineEnd = -1;
+        var chars = new List<int>();
+
+        while (lineEnd < text.Length - 1)
+        {
+            lineEnd = text[lineStart..].IndexOf('\n') switch
+            {
+                -1 => text.Length - 1,
+                var i => lineStart + i
+            };
+
+            var line = text[lineStart..(lineEnd + 1)].ToString();
+
+            if (lineHash.TryGetValue(line, out var lineIndex))
+            {
+                chars.Add(lineIndex);
+            }
+            else
+            {
+                if (lineArray.Count == maxLines)
+                {
+                    line = text[lineStart..].ToString();
+                    lineEnd = text.Length;
+                }
+
+                lineArray.Add(line);
+                var newIndex = lineArray.Count - 1;
+                lineHash[line] = newIndex;
+                chars.Add(newIndex);
+            }
+
+            lineStart = lineEnd + 1;
+        }
+
+        return chars.AsReadOnly();
     }
 }
