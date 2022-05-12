@@ -5,6 +5,9 @@ public static class ReadOnlySpanExtensions
     /// <summary>
     ///     Determines the common prefix of two strings.
     /// </summary>
+    /// <remarks>
+    ///     Performance analysis:  https://neil.fraser.name/news/2010/11/04/
+    /// </remarks>
     /// <param name="text1"></param>
     /// <param name="text2"></param>
     /// <returns>
@@ -28,6 +31,9 @@ public static class ReadOnlySpanExtensions
     /// <summary>
     ///     Determines the common suffix of two strings.
     /// </summary>
+    /// <remarks>
+    ///     Performance analysis:  https://neil.fraser.name/news/2010/11/04/
+    /// </remarks>
     /// <param name="text1"></param>
     /// <param name="text2"></param>
     /// <returns>
@@ -51,6 +57,9 @@ public static class ReadOnlySpanExtensions
     /// <summary>
     ///     Determines if the suffix of the first string is the prefix of the second string.
     /// </summary>
+    /// <remarks>
+    ///     Performance analysis:  https://neil.fraser.name/news/2010/11/04/
+    /// </remarks>
     /// <param name="text1"></param>
     /// <param name="text2"></param>
     /// <returns>
@@ -63,15 +72,19 @@ public static class ReadOnlySpanExtensions
             return 0;
         }
 
+        // Truncate the longer string
         var truncatedText1 = text1.Length > text2.Length ? text1[^text2.Length..] : text1;
         var truncatedText2 = text1.Length < text2.Length ? text2[..text1.Length] : text2;
 
         var lengthToCheck = Math.Min(text1.Length, text2.Length);
+
+        // Quick check for the worst case
         if (truncatedText1.Equals(truncatedText2, StringComparison.Ordinal))
         {
             return lengthToCheck;
         }
 
+        // Start by looking for a single character match, then increase length until no match is found
         var best = 0;
         var length = 1;
         while (true)
