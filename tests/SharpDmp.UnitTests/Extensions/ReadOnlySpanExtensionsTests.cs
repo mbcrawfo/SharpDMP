@@ -5,30 +5,8 @@ using Xunit;
 
 namespace SharpDmp.UnitTests.Extensions;
 
-public class StringExtensionsTests
+public class ReadOnlySpanExtensionsTests
 {
-    [Fact]
-    public void FindCommonPrefix_ShouldThrowArgumentNullException_WhenText1IsNull()
-    {
-        // arrange
-        // act
-        Action act = () => _ = StringExtensions.FindCommonPrefix(null!, "");
-
-        // assert
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("text1");
-    }
-
-    [Fact]
-    public void FindCommonPrefix_ShouldThrowArgumentNullException_WhenText2IsNull()
-    {
-        // arrange
-        // act
-        Action act = () => _ = "".FindCommonPrefix(null!);
-
-        // assert
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("text2");
-    }
-
     [Theory]
     [InlineData("abc", "xyz")]
     [InlineData("abcdef", "xyz")]
@@ -37,7 +15,7 @@ public class StringExtensionsTests
     {
         // arrange
         // act
-        var actual = text1.FindCommonPrefix(text2);
+        var actual = text1.AsSpan().FindCommonPrefix(text2);
 
         // assert
         actual.Should().Be(0);
@@ -56,32 +34,10 @@ public class StringExtensionsTests
     {
         // arrange
         // act
-        var actual = text1.FindCommonPrefix(text2);
+        var actual = text1.AsSpan().FindCommonPrefix(text2);
 
         // assert
         actual.Should().Be(expected);
-    }
-
-    [Fact]
-    public void FindCommonSuffix_ShouldThrowArgumentNullException_WhenText1IsNull()
-    {
-        // arrange
-        // act
-        Action act = () => _ = StringExtensions.FindCommonSuffix(null!, "");
-
-        // assert
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("text1");
-    }
-
-    [Fact]
-    public void FindCommonSuffix_ShouldThrowArgumentNullException_WhenText2IsNull()
-    {
-        // arrange
-        // act
-        Action act = () => _ = "".FindCommonSuffix(null!);
-
-        // assert
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("text2");
     }
 
     [Theory]
@@ -92,7 +48,7 @@ public class StringExtensionsTests
     {
         // arrange
         // act
-        var actual = text1.FindCommonSuffix(text2);
+        var actual = text1.AsSpan().FindCommonSuffix(text2);
 
         // assert
         actual.Should().Be(0);
@@ -111,7 +67,7 @@ public class StringExtensionsTests
     {
         // arrange
         // act
-        var actual = text1.FindCommonSuffix(text2);
+        var actual = text1.AsSpan().FindCommonSuffix(text2);
 
         // assert
         actual.Should().Be(expected);
