@@ -1,0 +1,1 @@
+﻿The code in this directory is copied from the reference implementation of diff-match-patch for C# (https://github.com/google/diff-match-patch/tree/master/csharp).  These libraries are available under the Apache 2.0 license, which can be obtained from http://www.apache.org/licenses/LICENSE-2.0.
