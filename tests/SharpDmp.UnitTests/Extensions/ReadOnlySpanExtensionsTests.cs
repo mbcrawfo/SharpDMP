@@ -12,6 +12,7 @@ namespace SharpDmp.UnitTests.Extensions;
 
 public class ReadOnlySpanExtensionsTests
 {
+    // diff_commonPrefix: Null case
     [Theory]
     [InlineData("abc", "xyz")]
     [InlineData("abcdef", "xyz")]
@@ -26,6 +27,8 @@ public class ReadOnlySpanExtensionsTests
         actual.Should().Be(0);
     }
 
+    // diff_commonPrefix: Non-null case
+    // diff_commonPrefix: Whole case
     [Theory]
     [InlineData("1234abcdef", "1234xyz", 4)]
     [InlineData("1234xyz", "1234abcdef", 4)]
@@ -45,6 +48,7 @@ public class ReadOnlySpanExtensionsTests
         actual.Should().Be(expected);
     }
 
+    // diff_commonSuffix: Null case
     [Theory]
     [InlineData("abc", "xyz")]
     [InlineData("abcdef", "xyz")]
@@ -59,6 +63,8 @@ public class ReadOnlySpanExtensionsTests
         actual.Should().Be(0);
     }
 
+    // diff_commonSuffix: Non-null case
+    // diff_commonSuffix: Whole case
     [Theory]
     [InlineData("acdef1234", "xyz1234", 4)]
     [InlineData("xyz1234", "acdef1234", 4)]
@@ -78,6 +84,7 @@ public class ReadOnlySpanExtensionsTests
         actual.Should().Be(expected);
     }
 
+    // diff_commonOverlap: Null case
     [Theory]
     [InlineData("", "abcd")]
     [InlineData("abcd", "")]
@@ -91,6 +98,10 @@ public class ReadOnlySpanExtensionsTests
         actual.Should().Be(0);
     }
 
+    // diff_commonOverlap: Whole case
+    // diff_commonOverlap: No overlap
+    // diff_commonOverlap: Overlap
+    // diff_commonOverlap: Unicode
     [Theory]
     [InlineData("123456", "abcd", 0)]
     [InlineData("abcd", "123456", 0)]
@@ -108,6 +119,7 @@ public class ReadOnlySpanExtensionsTests
         actual.Should().Be(expected);
     }
 
+    // diff_halfMatch: No match #2
     [Theory]
     [InlineData("a", "")]
     [InlineData("", "a")]
@@ -115,7 +127,7 @@ public class ReadOnlySpanExtensionsTests
     [InlineData("", "abc")]
     [InlineData("a", "1234567890")]
     [InlineData("1234567890", "a")]
-    public void FindHalfMatch_ShouldReturnNull_WhenInputsAreShort(string text1, string text2)
+    public void FindHalfMatch_ShouldSetResultToNotFound_WhenInputsAreShort(string text1, string text2)
     {
         // arrange
         var result = new HalfMatch();
@@ -124,13 +136,17 @@ public class ReadOnlySpanExtensionsTests
         text1.AsSpan().FindHalfMatch(text2, ref result);
 
         // assert
-        result.HasValue.Should().BeFalse();
+        result.Found.Should().BeFalse();
     }
 
+    // diff_halfMatch: No match #1
     [Theory]
     [InlineData("1234567890", "abcdef")]
     [InlineData("abcdef", "1234567890")]
-    public void FindHalfMatch_ShouldReturnNull_WhenInputsDoNotShareAHalfLengthSubstring(string text1, string text2)
+    public void FindHalfMatch_ShouldSetResultToNotFound_WhenInputsDoNotShareAHalfLengthSubstring(
+        string text1,
+        string text2
+    )
     {
         // arrange
         var result = new HalfMatch();
@@ -139,7 +155,7 @@ public class ReadOnlySpanExtensionsTests
         text1.AsSpan().FindHalfMatch(text2, ref result);
 
         // assert
-        result.HasValue.Should().BeFalse();
+        result.Found.Should().BeFalse();
     }
 
     public static IEnumerable FindHalfMatchSingleTestCases =>
@@ -185,6 +201,14 @@ public class ReadOnlySpanExtensionsTests
             new object[] { "qHilloHelloHew", "xHelloHeHulloy", "qHillo", "w", "x", "Hulloy", "HelloHe" },
         };
 
+    // diff_halfMatch: Single Match #1
+    // diff_halfMatch: Single Match #2
+    // diff_halfMatch: Single Match #3
+    // diff_halfMatch: Single Match #4
+    // diff_halfMatch: Multiple Matches #1
+    // diff_halfMatch: Multiple Matches #2
+    // diff_halfMatch: Multiple Matches #3
+    // diff_halfMatch: Non-optimal halfmatch
     [Theory]
     [MemberData(nameof(FindHalfMatchSingleTestCases))]
     public void FindHalfMatch_ShouldReturnExpectedHalfMatch_WhenInputsShareAHalfLengthSubstring(
@@ -234,6 +258,9 @@ public class ReadOnlySpanExtensionsTests
             new object[] { "a", "b", new[] { 1 }, new[] { 2 }, new[] { "", "a", "b" } },
         };
 
+    // diff_linesToChars: Shared lines
+    // diff_linesToChars: Empty string and blank lines
+    // diff_linesToChars: No linebreaks
     [Theory]
     [MemberData(nameof(LinesToCharsEncodingTestCases))]
     public void LinesToChars_ShouldEncodeInputsByTheirUniqueStrings(
@@ -340,6 +367,7 @@ public class ReadOnlySpanExtensionsTests
         actualUniqueStrings.Should().HaveCount(maxLines + 1).And.Subject.Should().EndWith(expectedLastUniqueString);
     }
 
+    // diff_linesToChars: More than 256
     [Fact]
     public void LinesToChars_ShouldEncodeInputsByTheirUniqueStrings_WhenInputContainsMoreThan256Lines()
     {

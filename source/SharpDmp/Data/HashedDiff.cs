@@ -15,7 +15,7 @@ internal sealed record HashedDiff(Operation Operation, IReadOnlyList<int> Hashed
         var sb = new StringBuilder();
         foreach (var hash in HashedText)
         {
-            Debug.Assert(hash < uniqueLines.Count);
+            Debug.Assert(hash < uniqueLines.Count, "hash < uniqueLines.Count");
             sb.Append(uniqueLines[hash]);
         }
 

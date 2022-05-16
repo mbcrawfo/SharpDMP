@@ -142,13 +142,13 @@ public static class ReadOnlySpanExtensions
         // Check again based on the third quarter.
         FindHalfMatch(longText, shortText, (longText.Length + 1) / 2, ref hm2);
 
-        if (!hm1.HasValue && !hm2.HasValue)
+        if (!hm1.Found && !hm2.Found)
         {
             return;
         }
 
         ref var halfMatch = ref hm1;
-        if (hm2.HasValue && (!hm1.HasValue || hm1.CommonMiddle.Length < hm2.CommonMiddle.Length))
+        if (hm2.Found && (!hm1.Found || hm1.CommonMiddle.Length < hm2.CommonMiddle.Length))
         {
             halfMatch = ref hm2;
         }

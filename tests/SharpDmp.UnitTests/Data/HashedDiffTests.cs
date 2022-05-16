@@ -8,9 +8,9 @@ using Xunit;
 
 namespace SharpDmp.UnitTests.Data;
 
-// Tests of diff_charsToLines are replicated here for completeness
 public class HashedDiffTests
 {
+    // diff_charsToLines: Shared lines
     [Fact]
     public void CollectionOfHashedDiffs_ShouldBeRehydrated()
     {
@@ -36,6 +36,7 @@ public class HashedDiffTests
         actual.Should().ContainInOrder(expected);
     }
 
+    // diff_charsToLines: More than 256
     [Fact]
     public void CollectionOfHashedDiffs_ShouldBeRehydrated_WhenMoreThan256UniqueStrings()
     {
@@ -63,6 +64,7 @@ public class HashedDiffTests
         actual.Should().ContainInOrder(expected);
     }
 
+    // diff_charsToLines: More than 65536
     [Fact]
     public void CollectionOfHashedDiffs_ShouldBeRehydrated_WhenMoreThan65536UniqueStrings()
     {

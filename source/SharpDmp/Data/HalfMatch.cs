@@ -4,7 +4,7 @@ internal readonly ref struct HalfMatch
 {
     public HalfMatch()
     {
-        HasValue = false;
+        Found = false;
         Text1Prefix = ReadOnlySpan<char>.Empty;
         Text1Suffix = ReadOnlySpan<char>.Empty;
         Text2Prefix = ReadOnlySpan<char>.Empty;
@@ -20,7 +20,7 @@ internal readonly ref struct HalfMatch
         ReadOnlySpan<char> commonMiddle
     )
     {
-        HasValue = true;
+        Found = true;
         Text1Prefix = text1Prefix;
         Text1Suffix = text1Suffix;
         Text2Prefix = text2Prefix;
@@ -28,7 +28,7 @@ internal readonly ref struct HalfMatch
         CommonMiddle = commonMiddle;
     }
 
-    public bool HasValue { get; }
+    public bool Found { get; }
 
     public ReadOnlySpan<char> Text1Prefix { get; }
 
