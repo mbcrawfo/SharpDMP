@@ -6,15 +6,16 @@ namespace SharpDmp.Extensions;
 public static class ReadOnlySpanExtensions
 {
     /// <summary>
-    ///     Determines if the suffix of the first string is the prefix of the second string.
+    ///     Determines if the suffix of <paramref name="text1"/> is the prefix of <paramref name="text2"/>.
     /// </summary>
     /// <remarks>
-    ///     Performance analysis:  https://neil.fraser.name/news/2010/11/04/
+    ///     Replaces <code>diff_commonOverlap</code>.  Performance analysis:  https://neil.fraser.name/news/2010/11/04/
     /// </remarks>
     /// <param name="text1"></param>
     /// <param name="text2"></param>
     /// <returns>
-    ///     The number of characters in common at the end of the first string and the start of the second string.
+    ///     The number of characters in common at the end of <paramref name="text1"/>g and the start of
+    ///     <paramref name="text2"/>.
     /// </returns>
     public static int FindCommonOverlap(this ReadOnlySpan<char> text1, ReadOnlySpan<char> text2)
     {
@@ -66,7 +67,7 @@ public static class ReadOnlySpanExtensions
     ///     Determines the common prefix of two strings.
     /// </summary>
     /// <remarks>
-    ///     Performance analysis:  https://neil.fraser.name/news/2010/11/04/
+    ///     Replaces <code>diff_commonPrefix</code>. Performance analysis:  https://neil.fraser.name/news/2010/11/04/
     /// </remarks>
     /// <param name="text1"></param>
     /// <param name="text2"></param>
@@ -92,7 +93,7 @@ public static class ReadOnlySpanExtensions
     ///     Determines the common suffix of two strings.
     /// </summary>
     /// <remarks>
-    ///     Performance analysis:  https://neil.fraser.name/news/2010/11/04/
+    ///     Replaces <code>diff_commonSuffix</code>.  Performance analysis:  https://neil.fraser.name/news/2010/11/04/
     /// </remarks>
     /// <param name="text1"></param>
     /// <param name="text2"></param>
@@ -119,6 +120,8 @@ public static class ReadOnlySpanExtensions
     /// </summary>
     /// <remarks>
     ///     This speedup can produce non-minimal diffs.
+    ///
+    ///     Replaces <code>diff_halfMatch</code>.
     /// </remarks>
     /// <param name="text1"></param>
     /// <param name="text2"></param>
@@ -169,6 +172,9 @@ public static class ReadOnlySpanExtensions
     ///     Split two texts into a list of strings.  Reduce the texts to a list of hashes where each hash represents
     ///     one line.
     /// </summary>
+    /// <remarks>
+    ///     Replaces <code>diff_linesToChars</code>.
+    /// </remarks>
     /// <param name="text1"></param>
     /// <param name="text2"></param>
     /// <returns></returns>
@@ -188,6 +194,9 @@ public static class ReadOnlySpanExtensions
     ///     Does a substring of <paramref name="shortText" /> exist within <paramref name="longText" /> such that the
     ///     substring is at least half the length of <paramref name="longText" />?
     /// </summary>
+    /// <remarks>
+    ///     Replaces <code>diff_halfMatchI</code>.
+    /// </remarks>
     /// <param name="longText"></param>
     /// <param name="shortText"></param>
     /// <param name="longTextQuarterLengthStart"></param>
@@ -250,6 +259,9 @@ public static class ReadOnlySpanExtensions
     ///     Split a text into a list of strings.  Reduce the text to a list of hashes where each hash represents
     ///     one line.
     /// </summary>
+    /// <remarks>
+    ///     Replaces <code>diff_linesToCharsMunge</code>.
+    /// </remarks>
     /// <param name="text"></param>
     /// <param name="lineArray"></param>
     /// <param name="lineHash"></param>

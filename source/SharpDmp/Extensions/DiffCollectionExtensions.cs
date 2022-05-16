@@ -10,6 +10,9 @@ public static class DiffCollectionExtensions
     ///     Reorder and merge together redundant edit sections.  Multiple equalities are merged together.  Any other
     ///     edit section can move as long as it doesn't cross an equality.
     /// </summary>
+    /// <remarks>
+    ///     Replaces <code>diff_cleanupMerge</code>.
+    /// </remarks>
     /// <param name="diffs">
     ///     The diffs to be optimized.
     /// </param>
