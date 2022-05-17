@@ -17,13 +17,13 @@ public static class DiffCollectionExtensions
     ///     The diffs to be optimized.
     /// </param>
     /// <returns>
-    ///     A new collection of diffs that have been optimized.
+    ///     A copy of <paramref name="diffs" /> that has been optimized.
     /// </returns>
     /// <exception cref="ArgumentNullException">
-    ///     <paramref name="diffs"/> is null.
+    ///     <paramref name="diffs" /> is null.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    ///     One of the items in <paramref name="diffs"/> contains an invalid <see cref="Operation"/> value.
+    ///     One of the items in <paramref name="diffs" /> contains an invalid <see cref="Operation" /> value.
     /// </exception>
     public static IReadOnlyList<Diff> CleanupAndMerge(this IEnumerable<Diff> diffs)
     {
@@ -120,6 +120,217 @@ public static class DiffCollectionExtensions
                 return resultDiffs.AsReadOnly();
             }
         }
+    }
+
+    /// <summary>
+    ///     Optimizes <paramref name="diffs" /> by finding single edits surrounded on both sides by equalities that can
+    ///     be shifted sideways to align the edit to a word boundary.
+    /// </summary>
+    /// <remarks>
+    ///     Example: The c<ins>at c</ins>ame. -> The <ins>cat </ins>came.
+    ///     Replaces <code>diff_cleanupSemanticLossless</code>.
+    /// </remarks>
+    /// <param name="diffs">
+    ///     The diffs to be optimized.
+    /// </param>
+    /// <returns>
+    ///     A copy of <paramref name="diffs" /> that has been optimized.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="diffs" /> is null.
+    /// </exception>
+    public static IReadOnlyList<Diff> CleanupSemanticLossless(this IEnumerable<Diff> diffs)
+    {
+        if (diffs is null)
+        {
+            throw new ArgumentNullException(nameof(diffs));
+        }
+
+        // Copy the input to a list that we can mutate.
+        var result = diffs.ToList();
+
+        // First and last element don't need to be checked.
+        for (var index = 1; index < result.Count - 1; index++)
+        {
+            var previousDiff = result[index - 1];
+            var currentDiff = result[index];
+            var nextDiff = result[index + 1];
+
+            if (previousDiff.Operation is not Operation.Equal || nextDiff.Operation is not Operation.Equal)
+            {
+                continue;
+            }
+
+            var (bestPrevious, bestEdit, bestNext) = CleanupSemanticOptimizeDiffText(
+                previousDiff.Text,
+                currentDiff.Text,
+                nextDiff.Text
+            );
+
+            // No improvement was found.
+            if (previousDiff.Text == bestPrevious)
+            {
+                continue;
+            }
+
+            if (bestPrevious.Length is not 0)
+            {
+                result[index - 1] = previousDiff with { Text = bestPrevious };
+            }
+            else
+            {
+                result.RemoveAt(index - 1);
+                index -= 1;
+            }
+
+            result[index] = currentDiff with { Text = bestEdit };
+
+            if (bestNext.Length is not 0)
+            {
+                result[index + 1] = nextDiff with { Text = bestNext };
+            }
+            else
+            {
+                result.RemoveAt(index + 1);
+                index -= 1;
+            }
+        }
+
+        return result.AsReadOnly();
+    }
+
+    /// <summary>
+    ///     Given the text of an equality, an edit, and a second equality, optimize the text to align with word
+    ///     boundaries.
+    /// </summary>
+    /// <param name="originalPreviousText">
+    ///     The text of the first equality.
+    /// </param>
+    /// <param name="originalCurrentText">
+    ///     The text of the edit.
+    /// </param>
+    /// <param name="originalNextText">
+    ///     The text of the second equality.
+    /// </param>
+    /// <returns>
+    ///     The most optimized permutation of the texts that could be found.
+    /// </returns>
+    private static (string bestPrevious, string bestEdit, string bestNext) CleanupSemanticOptimizeDiffText(
+        string originalPreviousText,
+        string originalCurrentText,
+        string originalNextText
+    )
+    {
+        // Early out - optimizations require prev/current to share a suffix, or current/next to share a prefix.
+        if (
+            originalPreviousText.LastCharOrDefault() != originalCurrentText.LastCharOrDefault()
+            && originalCurrentText.FirstCharOrDefault() != originalNextText.FirstCharOrDefault()
+        )
+        {
+            return (originalPreviousText, originalCurrentText, originalNextText);
+        }
+
+        var previous = new StringBuilder(originalPreviousText);
+        var edit = new StringBuilder(originalCurrentText);
+        var next = new StringBuilder(originalNextText);
+
+        // Shift the edit as far left as possible.
+        var suffixLength = originalPreviousText.AsSpan().FindCommonSuffix(originalCurrentText);
+        if (suffixLength is not 0)
+        {
+            var suffix = originalCurrentText.AsSpan()[^suffixLength..];
+            previous.Remove(previous.Length - suffixLength, suffixLength);
+            edit.Insert(0, suffix).Remove(edit.Length - suffixLength, suffixLength);
+            next.Insert(0, suffix);
+        }
+
+        var bestPrevious = previous.ToString();
+        var bestEdit = edit.ToString();
+        var bestNext = next.ToString();
+        var bestScore = CleanupSemanticScore(previous, edit) + CleanupSemanticScore(edit, next);
+
+        // Step character by character to the right, looking for the text that fits best.
+        while (edit.Length is not 0 && next.Length is not 0 && edit[0] == next[0])
+        {
+            previous.Append(edit[0]);
+            edit.Remove(0, 1).Append(next[0]);
+            next.Remove(0, 1);
+
+            var score = CleanupSemanticScore(previous, edit) + CleanupSemanticScore(edit, next);
+            // Using >= encourages trailing rather than leading whitespace on edits.
+            if (score >= bestScore)
+            {
+                bestScore = score;
+                bestPrevious = previous.ToString();
+                bestEdit = edit.ToString();
+                bestNext = next.ToString();
+            }
+        }
+
+        return (bestPrevious, bestEdit, bestNext);
+    }
+
+    /// <summary>
+    ///     Given two strings, comuptes a score representing whether the boundary of the strings falls on logical
+    ///     boundaries.
+    /// </summary>
+    /// <remarks>
+    ///     Each port of this method behaves slightly differently due to subtle difference in each language's
+    ///     definition of things like 'whitespace'.  Since this method's purpose is largely cosmetic, the choice has
+    ///     been made to use each language's native features rather than forcing total conformity.
+    /// </remarks>
+    /// <param name="text1"></param>
+    /// <param name="text2"></param>
+    /// <returns>
+    ///     A score in the range [0, 6], with 6 being the best score.
+    /// </returns>
+    private static int CleanupSemanticScore(StringBuilder text1, StringBuilder text2)
+    {
+        // Early out - edges are the best.
+        if (text1.Length is 0 || text2.Length is 0)
+        {
+            return 6;
+        }
+
+        var char1 = text1[^1];
+        var nonAlphaNumeric1 = !char.IsLetterOrDigit(char1);
+        var whitespace1 = nonAlphaNumeric1 && char.IsWhiteSpace(char1);
+        var lineBreak1 = whitespace1 && char.IsControl(char1);
+        var blankLine1 = lineBreak1 && text1.EndsWithBlankLine();
+
+        var char2 = text2[0];
+        var nonAlphaNumeric2 = !char.IsLetterOrDigit(char2);
+        var whitespace2 = nonAlphaNumeric2 && char.IsWhiteSpace(char2);
+        var lineBreak2 = whitespace2 && char.IsControl(char2);
+        var blankLine2 = lineBreak2 && text2.StartsWithBlankLine();
+
+        if (blankLine1 || blankLine2)
+        {
+            return 5;
+        }
+
+        if (lineBreak1 || lineBreak2)
+        {
+            return 4;
+        }
+
+        // End of sentence.
+        if (nonAlphaNumeric1 && !whitespace1 && whitespace2)
+        {
+            return 3;
+        }
+
+        if (whitespace1 || whitespace2)
+        {
+            return 2;
+        }
+
+        if (nonAlphaNumeric1 || nonAlphaNumeric2)
+        {
+            return 1;
+        }
+
+        return 0;
     }
 
     /// <summary>
@@ -227,7 +438,7 @@ public static class DiffCollectionExtensions
     /// </summary>
     /// <param name="diffs"></param>
     /// <returns>
-    ///     True if any changes were made to <paramref name="diffs"/>.
+    ///     True if any changes were made to <paramref name="diffs" />.
     /// </returns>
     private static bool OptimizeSingleEdits(IList<Diff> diffs)
     {

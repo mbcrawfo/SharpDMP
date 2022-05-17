@@ -380,4 +380,235 @@ public class DiffCollectionExtensionsTests
             .And.ParamName.Should()
             .Be("diffs");
     }
+
+    // diff_cleanupSemanticLossless: Sentence boundaries
+    [Fact]
+    public void CleanupSemanticLossless_ShouldAlignEqualitiesToSententBoundaries()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Equal, "The xxx. The "),
+            new Diff(Operation.Insert, "zzz. The "),
+            new Diff(Operation.Equal, "yyy.")
+        };
+
+        var expected = new[]
+        {
+            new Diff(Operation.Equal, "The xxx."),
+            new Diff(Operation.Insert, " The zzz."),
+            new Diff(Operation.Equal, " The yyy.")
+        };
+
+        // act
+        var actual = diffs.CleanupSemanticLossless();
+
+        // assert
+        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+    }
+
+    [Fact]
+    public void CleanupSemanticLossless_ShouldNotModifyDiffs_WhenDiffPatternCannotBeOptimized()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Insert, "a"),
+            new Diff(Operation.Equal, "b"),
+            new Diff(Operation.Delete, "c")
+        };
+
+        // act
+        var result = diffs.CleanupSemanticLossless();
+
+        // assert
+        result.Should().HaveCount(diffs.Length).And.ContainInOrder(diffs);
+    }
+
+    [Fact]
+    public void CleanupSemanticLossless_ShouldNotModifyDiffs_WhenDiffTextCannotBeOptimized()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Equal, "a"),
+            new Diff(Operation.Insert, "b"),
+            new Diff(Operation.Equal, "c")
+        };
+
+        // act
+        var result = diffs.CleanupSemanticLossless();
+
+        // assert
+        result.Should().HaveCount(diffs.Length).And.ContainInOrder(diffs);
+    }
+
+    // diff_cleanupSemanticLossless: Hitting the start
+    [Fact]
+    public void CleanupSemanticLossless_ShouldRemoveRedundantEqualities_WhenLeadingEqualityCanBeMergedToTheRight()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Equal, "a"),
+            new Diff(Operation.Delete, "a"),
+            new Diff(Operation.Equal, "ax")
+        };
+
+        var expected = new[] { new Diff(Operation.Delete, "a"), new Diff(Operation.Equal, "aax") };
+
+        // act
+        var actual = diffs.CleanupSemanticLossless();
+
+        // assert
+        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemanticLossless: Hitting the end
+    [Fact]
+    public void CleanupSemanticLossless_ShouldRemoveRedundantEqualities_WhenTrailingEqualityCanBeMergedToTheLeft()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Equal, "xa"),
+            new Diff(Operation.Delete, "a"),
+            new Diff(Operation.Equal, "a")
+        };
+
+        var expected = new[] { new Diff(Operation.Equal, "xaa"), new Diff(Operation.Delete, "a") };
+
+        // act
+        var actual = diffs.CleanupSemanticLossless();
+
+        // assert
+        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemanticLossless: Null case
+    [Fact]
+    public void CleanupSemanticLossless_ShouldReturnEmptyList_WhenDiffsIsEmpty()
+    {
+        // arrange
+        // act
+        var result = Array.Empty<Diff>().CleanupSemanticLossless();
+
+        // assert
+        result.Should().BeEmpty();
+    }
+
+    // diff_cleanupSemanticLossless: Alphanumeric boundaries
+    [Fact]
+    public void CleanupSemanticLossless_ShouldShiftSuffixesToTheRight_WhenDiffsCrossAlphanumericBoundaries()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Equal, "The-c"),
+            new Diff(Operation.Insert, "ow-and-the-c"),
+            new Diff(Operation.Equal, "at.")
+        };
+
+        var expected = new[]
+        {
+            new Diff(Operation.Equal, "The-"),
+            new Diff(Operation.Insert, "cow-and-the-"),
+            new Diff(Operation.Equal, "cat.")
+        };
+
+        // act
+        var actual = diffs.CleanupSemanticLossless();
+
+        // assert
+        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemanticLossless: Blank lines
+    [Fact]
+    public void CleanupSemanticLossless_ShouldShiftSuffixesToTheRight_WhenDiffsCrossBlankLines()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Equal, "AAA\r\n\r\nBBB"),
+            new Diff(Operation.Insert, "\r\nDDD\r\n\r\nBBB"),
+            new Diff(Operation.Equal, "\r\nEEE")
+        };
+
+        var expected = new[]
+        {
+            new Diff(Operation.Equal, "AAA\r\n\r\n"),
+            new Diff(Operation.Insert, "BBB\r\nDDD\r\n\r\n"),
+            new Diff(Operation.Equal, "BBB\r\nEEE")
+        };
+
+        // act
+        var actual = diffs.CleanupSemanticLossless();
+
+        // assert
+        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemanticLossless: Line boundaries
+    [Fact]
+    public void CleanupSemanticLossless_ShouldShiftSuffixesToTheRight_WhenDiffsCrossLineBoundaries()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Equal, "AAA\r\nBBB"),
+            new Diff(Operation.Insert, " DDD\r\nBBB"),
+            new Diff(Operation.Equal, " EEE")
+        };
+
+        var expected = new[]
+        {
+            new Diff(Operation.Equal, "AAA\r\n"),
+            new Diff(Operation.Insert, "BBB DDD\r\n"),
+            new Diff(Operation.Equal, "BBB EEE")
+        };
+
+        // act
+        var actual = diffs.CleanupSemanticLossless();
+
+        // assert
+        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemanticLossless: Word boundaries
+    [Fact]
+    public void CleanupSemanticLossless_ShouldShiftSuffixesToTheRight_WhenDiffsCrossWordBoundaries()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Equal, "The c"),
+            new Diff(Operation.Insert, "ow and the c"),
+            new Diff(Operation.Equal, "at.")
+        };
+
+        var expected = new[]
+        {
+            new Diff(Operation.Equal, "The "),
+            new Diff(Operation.Insert, "cow and the "),
+            new Diff(Operation.Equal, "cat.")
+        };
+
+        // act
+        var actual = diffs.CleanupSemanticLossless();
+
+        // assert
+        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+    }
+
+    [Fact]
+    public void CleanupSemanticLossless_ShouldThrowArgumentNullException_WhenDiffsIsNull()
+    {
+        // arrange
+        // act
+        Action act = () => _ = DiffCollectionExtensions.CleanupSemanticLossless(null!);
+
+        // assert
+        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("diffs");
+    }
 }
