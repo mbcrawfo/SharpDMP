@@ -16,30 +16,19 @@ public static class DiffCollectionExtensions
     /// <param name="diffs">
     ///     The diffs to be optimized.
     /// </param>
-    /// <returns>
-    ///     A copy of <paramref name="diffs" /> that has been optimized.
-    /// </returns>
-    /// <exception cref="ArgumentNullException">
-    ///     <paramref name="diffs" /> is null.
-    /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     One of the items in <paramref name="diffs" /> contains an invalid <see cref="Operation" /> value.
     /// </exception>
-    public static IReadOnlyList<Diff> CleanupAndMerge(this IEnumerable<Diff> diffs)
+    internal static void CleanupAndMerge(this List<Diff> diffs)
     {
-        if (diffs is null)
-        {
-            throw new ArgumentNullException(nameof(diffs));
-        }
+        Debug.Assert(diffs is not null, "diffs is not null");
 
-        // Copy into a list that we can mutate.
-        var resultDiffs = diffs.ToList();
         var dummyDiff = new Diff(Operation.Equal, string.Empty);
 
         while (true)
         {
             // Add a dummy equality at the end to trigger merging any trailing inserts and deletes.
-            resultDiffs.Add(dummyDiff);
+            diffs.Add(dummyDiff);
 
             var index = 0;
             var numberOfDeletions = 0;
@@ -47,9 +36,9 @@ public static class DiffCollectionExtensions
             var numberOfInsertions = 0;
             var textInserted = new StringBuilder();
 
-            while (index < resultDiffs.Count)
+            while (index < diffs.Count)
             {
-                var currentDiff = resultDiffs[index];
+                var currentDiff = diffs[index];
                 switch (currentDiff.Operation)
                 {
                     case Operation.Delete:
@@ -68,7 +57,7 @@ public static class DiffCollectionExtensions
                         if (numberOfDeletions + numberOfInsertions > 1)
                         {
                             index = MergeInsertAndDeleteCommonalities(
-                                resultDiffs,
+                                diffs,
                                 index,
                                 numberOfDeletions,
                                 textDeleted,
@@ -77,16 +66,16 @@ public static class DiffCollectionExtensions
                             );
                         }
                         // Merge back to back equalities together.
-                        else if (index is not 0 && resultDiffs[index - 1].Operation is Operation.Equal)
+                        else if (index is not 0 && diffs[index - 1].Operation is Operation.Equal)
                         {
-                            var previousDiff = resultDiffs[index - 1];
-                            resultDiffs[index - 1] = previousDiff with { Text = previousDiff.Text + currentDiff.Text };
-                            resultDiffs.RemoveAt(index);
+                            var previousDiff = diffs[index - 1];
+                            diffs[index - 1] = previousDiff with { Text = previousDiff.Text + currentDiff.Text };
+                            diffs.RemoveAt(index);
                         }
                         // Remove empty equalities, but ignore the dummy diff at the end.
-                        else if (index < resultDiffs.Count - 1 && currentDiff.Text.Length == 0)
+                        else if (index < diffs.Count - 1 && currentDiff.Text.Length == 0)
                         {
-                            resultDiffs.RemoveAt(index);
+                            diffs.RemoveAt(index);
                         }
                         else
                         {
@@ -109,15 +98,15 @@ public static class DiffCollectionExtensions
             }
 
             // Remove the dummy entry, if it's still there.
-            if (resultDiffs[^1] is { Operation: Operation.Equal, Text: "" })
+            if (diffs[^1] is { Operation: Operation.Equal, Text: "" })
             {
-                resultDiffs.RemoveAt(resultDiffs.Count - 1);
+                diffs.RemoveAt(diffs.Count - 1);
             }
 
             // If any shifts were made we need another pass at reordering.  If not, we're done.
-            if (!OptimizeSingleEdits(resultDiffs))
+            if (!OptimizeSingleEdits(diffs))
             {
-                return resultDiffs.AsReadOnly();
+                break;
             }
         }
     }
@@ -133,28 +122,16 @@ public static class DiffCollectionExtensions
     /// <param name="diffs">
     ///     The diffs to be optimized.
     /// </param>
-    /// <returns>
-    ///     A copy of <paramref name="diffs" /> that has been optimized.
-    /// </returns>
-    /// <exception cref="ArgumentNullException">
-    ///     <paramref name="diffs" /> is null.
-    /// </exception>
-    public static IReadOnlyList<Diff> CleanupSemanticLossless(this IEnumerable<Diff> diffs)
+    internal static void CleanupSemanticLossless(this List<Diff> diffs)
     {
-        if (diffs is null)
-        {
-            throw new ArgumentNullException(nameof(diffs));
-        }
-
-        // Copy the input to a list that we can mutate.
-        var result = diffs.ToList();
+        Debug.Assert(diffs is not null, "diffs is not null");
 
         // First and last element don't need to be checked.
-        for (var index = 1; index < result.Count - 1; index++)
+        for (var index = 1; index < diffs.Count - 1; index++)
         {
-            var previousDiff = result[index - 1];
-            var currentDiff = result[index];
-            var nextDiff = result[index + 1];
+            var previousDiff = diffs[index - 1];
+            var currentDiff = diffs[index];
+            var nextDiff = diffs[index + 1];
 
             if (previousDiff.Operation is not Operation.Equal || nextDiff.Operation is not Operation.Equal)
             {
@@ -175,28 +152,26 @@ public static class DiffCollectionExtensions
 
             if (bestPrevious.Length is not 0)
             {
-                result[index - 1] = previousDiff with { Text = bestPrevious };
+                diffs[index - 1] = previousDiff with { Text = bestPrevious };
             }
             else
             {
-                result.RemoveAt(index - 1);
+                diffs.RemoveAt(index - 1);
                 index -= 1;
             }
 
-            result[index] = currentDiff with { Text = bestEdit };
+            diffs[index] = currentDiff with { Text = bestEdit };
 
             if (bestNext.Length is not 0)
             {
-                result[index + 1] = nextDiff with { Text = bestNext };
+                diffs[index + 1] = nextDiff with { Text = bestNext };
             }
             else
             {
-                result.RemoveAt(index + 1);
+                diffs.RemoveAt(index + 1);
                 index -= 1;
             }
         }
-
-        return result.AsReadOnly();
     }
 
     /// <summary>

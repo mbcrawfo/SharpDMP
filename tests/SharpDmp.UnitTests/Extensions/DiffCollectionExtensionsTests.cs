@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using FluentAssertions;
 using SharpDmp.Data;
 using SharpDmp.Extensions;
@@ -17,15 +18,15 @@ public class DiffCollectionExtensionsTests
     )
     {
         // arrange
-        var diffs = new[] { new Diff(operationToRemove, "a"), new Diff(operationToRemain, "abc"), };
+        var diffs = new List<Diff> { new(operationToRemove, "a"), new(operationToRemain, "abc"), };
 
-        var expected = new[] { new Diff(Operation.Equal, "a"), new Diff(operationToRemain, "bc"), };
+        var expected = new List<Diff> { new(Operation.Equal, "a"), new(operationToRemain, "bc"), };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupMerge: Slide edit left
@@ -37,15 +38,15 @@ public class DiffCollectionExtensionsTests
     )
     {
         // arrange
-        var diffs = new[] { new Diff(Operation.Equal, "a"), new Diff(operation, "ba"), new Diff(Operation.Equal, "c") };
+        var diffs = new List<Diff> { new(Operation.Equal, "a"), new(operation, "ba"), new(Operation.Equal, "c") };
 
-        var expected = new[] { new Diff(operation, "ab"), new Diff(Operation.Equal, "ac") };
+        var expected = new List<Diff> { new(operation, "ab"), new(Operation.Equal, "ac") };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupMerge: Slide edit right
@@ -57,15 +58,15 @@ public class DiffCollectionExtensionsTests
     )
     {
         // arrange
-        var diffs = new[] { new Diff(Operation.Equal, "c"), new Diff(operation, "ab"), new Diff(Operation.Equal, "a") };
+        var diffs = new List<Diff> { new(Operation.Equal, "c"), new(operation, "ab"), new(Operation.Equal, "a") };
 
-        var expected = new[] { new Diff(Operation.Equal, "ca"), new Diff(operation, "ba") };
+        var expected = new List<Diff> { new(Operation.Equal, "ca"), new(operation, "ba") };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupMerge: Slide edit left recursive
@@ -77,22 +78,22 @@ public class DiffCollectionExtensionsTests
     )
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "a"),
-            new Diff(operation, "b"),
-            new Diff(Operation.Equal, "c"),
-            new Diff(operation, "ac"),
-            new Diff(Operation.Equal, "x")
+            new(Operation.Equal, "a"),
+            new(operation, "b"),
+            new(Operation.Equal, "c"),
+            new(operation, "ac"),
+            new(Operation.Equal, "x")
         };
 
-        var expected = new[] { new Diff(operation, "abc"), new Diff(Operation.Equal, "acx") };
+        var expected = new List<Diff> { new(operation, "abc"), new(Operation.Equal, "acx") };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupMerge: Slide edit right recursive
@@ -104,22 +105,22 @@ public class DiffCollectionExtensionsTests
     )
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "x"),
-            new Diff(operation, "ca"),
-            new Diff(Operation.Equal, "c"),
-            new Diff(operation, "b"),
-            new Diff(Operation.Equal, "a")
+            new(Operation.Equal, "x"),
+            new(operation, "ca"),
+            new(Operation.Equal, "c"),
+            new(operation, "b"),
+            new(Operation.Equal, "a")
         };
 
-        var expected = new[] { new Diff(Operation.Equal, "xca"), new Diff(operation, "cba") };
+        var expected = new List<Diff> { new(Operation.Equal, "xca"), new(operation, "cba") };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupMerge: Merge interweave
@@ -127,28 +128,28 @@ public class DiffCollectionExtensionsTests
     public void CleanupAndMerge_ShouldMergeOperationsTogether_WhenOperationsAreInterwoven()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Delete, "a"),
-            new Diff(Operation.Insert, "b"),
-            new Diff(Operation.Delete, "c"),
-            new Diff(Operation.Insert, "d"),
-            new Diff(Operation.Equal, "e"),
-            new Diff(Operation.Equal, "f")
+            new(Operation.Delete, "a"),
+            new(Operation.Insert, "b"),
+            new(Operation.Delete, "c"),
+            new(Operation.Insert, "d"),
+            new(Operation.Equal, "e"),
+            new(Operation.Equal, "f")
         };
 
-        var expected = new[]
+        var expected = new List<Diff>
         {
-            new Diff(Operation.Delete, "ac"),
-            new Diff(Operation.Insert, "bd"),
-            new Diff(Operation.Equal, "ef")
+            new(Operation.Delete, "ac"),
+            new(Operation.Insert, "bd"),
+            new(Operation.Equal, "ef")
         };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupMerge: Merge deletions
@@ -156,18 +157,18 @@ public class DiffCollectionExtensionsTests
     public void CleanupAndMerge_ShouldMergeSequentialOperationsTogether_WhenOperationsAreDelete()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Delete, "a"),
-            new Diff(Operation.Delete, "b"),
-            new Diff(Operation.Delete, "c")
+            new(Operation.Delete, "a"),
+            new(Operation.Delete, "b"),
+            new(Operation.Delete, "c")
         };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(1).And.Contain(new Diff(Operation.Delete, "abc"));
+        diffs.Should().HaveCount(1).And.Contain(new Diff(Operation.Delete, "abc"));
     }
 
     // diff_cleanupMerge: Merge equalities
@@ -175,18 +176,13 @@ public class DiffCollectionExtensionsTests
     public void CleanupAndMerge_ShouldMergeSequentialOperationsTogether_WhenOperationsAreEqual()
     {
         // arrange
-        var diffs = new[]
-        {
-            new Diff(Operation.Equal, "a"),
-            new Diff(Operation.Equal, "b"),
-            new Diff(Operation.Equal, "c")
-        };
+        var diffs = new List<Diff> { new(Operation.Equal, "a"), new(Operation.Equal, "b"), new(Operation.Equal, "c") };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(1).And.Contain(new Diff(Operation.Equal, "abc"));
+        diffs.Should().HaveCount(1).And.Contain(new Diff(Operation.Equal, "abc"));
     }
 
     // diff_cleanupMerge: Merge insertions
@@ -194,18 +190,18 @@ public class DiffCollectionExtensionsTests
     public void CleanupAndMerge_ShouldMergeSequentialOperationsTogether_WhenOperationsAreInsert()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Insert, "a"),
-            new Diff(Operation.Insert, "b"),
-            new Diff(Operation.Insert, "c")
+            new(Operation.Insert, "a"),
+            new(Operation.Insert, "b"),
+            new(Operation.Insert, "c")
         };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(1).And.Contain(new Diff(Operation.Insert, "abc"));
+        diffs.Should().HaveCount(1).And.Contain(new Diff(Operation.Insert, "abc"));
     }
 
     // diff_cleanupMerge: No change case
@@ -213,18 +209,18 @@ public class DiffCollectionExtensionsTests
     public void CleanupAndMerge_ShouldNotChangeTheDiffs_WhenNoCleanupIsPossible()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "a"),
-            new Diff(Operation.Delete, "b"),
-            new Diff(Operation.Insert, "c")
+            new(Operation.Equal, "a"),
+            new(Operation.Delete, "b"),
+            new(Operation.Insert, "c")
         };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(diffs.Length).And.ContainInOrder(diffs);
+        diffs.Should().HaveCount(diffs.Count).And.ContainInOrder(diffs);
     }
 
     // diff_cleanupMerge: Prefix and suffix detection
@@ -232,26 +228,26 @@ public class DiffCollectionExtensionsTests
     public void CleanupAndMerge_ShouldOptimizeCommonPrefixesAndSuffixesForDeletionsAndInserts()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Delete, "a"),
-            new Diff(Operation.Insert, "abc"),
-            new Diff(Operation.Delete, "dc")
+            new(Operation.Delete, "a"),
+            new(Operation.Insert, "abc"),
+            new(Operation.Delete, "dc")
         };
 
-        var expected = new[]
+        var expected = new List<Diff>
         {
-            new Diff(Operation.Equal, "a"),
-            new Diff(Operation.Delete, "d"),
-            new Diff(Operation.Insert, "b"),
-            new Diff(Operation.Equal, "c")
+            new(Operation.Equal, "a"),
+            new(Operation.Delete, "d"),
+            new(Operation.Insert, "b"),
+            new(Operation.Equal, "c")
         };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupMerge: Prefix and suffix detection with equalities
@@ -259,48 +255,48 @@ public class DiffCollectionExtensionsTests
     public void CleanupAndMerge_ShouldOptimizeCommonPrefixesAndSuffixesForDeletionsAndInserts_WhenEqualitiesAreIncluded()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "x"),
-            new Diff(Operation.Delete, "a"),
-            new Diff(Operation.Insert, "abc"),
-            new Diff(Operation.Delete, "dc"),
-            new Diff(Operation.Equal, "y")
+            new(Operation.Equal, "x"),
+            new(Operation.Delete, "a"),
+            new(Operation.Insert, "abc"),
+            new(Operation.Delete, "dc"),
+            new(Operation.Equal, "y")
         };
 
-        var expected = new[]
+        var expected = new List<Diff>
         {
-            new Diff(Operation.Equal, "xa"),
-            new Diff(Operation.Delete, "d"),
-            new Diff(Operation.Insert, "b"),
-            new Diff(Operation.Equal, "cy")
+            new(Operation.Equal, "xa"),
+            new(Operation.Delete, "d"),
+            new(Operation.Insert, "b"),
+            new(Operation.Equal, "cy")
         };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     [Fact]
     public void CleanupAndMerge_ShouldOptimizeCommonSuffixesForDeletionsAndInserts()
     {
         // arrange
-        var diffs = new[] { new Diff(Operation.Insert, "abc"), new Diff(Operation.Delete, "dc") };
+        var diffs = new List<Diff> { new(Operation.Insert, "abc"), new(Operation.Delete, "dc") };
 
-        var expected = new[]
+        var expected = new List<Diff>
         {
-            new Diff(Operation.Delete, "d"),
-            new Diff(Operation.Insert, "ab"),
-            new Diff(Operation.Equal, "c")
+            new(Operation.Delete, "d"),
+            new(Operation.Insert, "ab"),
+            new(Operation.Equal, "c")
         };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupMerge: Empty equality
@@ -308,15 +304,15 @@ public class DiffCollectionExtensionsTests
     public void CleanupAndMerge_ShouldRemoveEmptyEqualities()
     {
         // arrange
-        var diffs = new[] { new Diff(Operation.Equal, ""), new Diff(Operation.Insert, "a"), };
+        var diffs = new List<Diff> { new(Operation.Equal, ""), new(Operation.Insert, "a"), };
 
-        var expected = new[] { new Diff(Operation.Insert, "a") };
+        var expected = new List<Diff> { new(Operation.Insert, "a") };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupMerge: Empty merge
@@ -324,20 +320,20 @@ public class DiffCollectionExtensionsTests
     public void CleanupAndMerge_ShouldRemoveOperationsThatAreRedundant()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Delete, "b"),
-            new Diff(Operation.Insert, "ab"),
-            new Diff(Operation.Equal, "c")
+            new(Operation.Delete, "b"),
+            new(Operation.Insert, "ab"),
+            new(Operation.Equal, "c")
         };
 
-        var expected = new[] { new Diff(Operation.Insert, "a"), new Diff(Operation.Equal, "bc") };
+        var expected = new List<Diff> { new(Operation.Insert, "a"), new(Operation.Equal, "bc") };
 
         // act
-        var result = diffs.CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupMerge: Null case.
@@ -345,22 +341,13 @@ public class DiffCollectionExtensionsTests
     public void CleanupAndMerge_ShouldReturnEmptyList_WhenInputIsEmpty()
     {
         // arrange
+        var diffs = new List<Diff>();
+
         // act
-        var result = Array.Empty<Diff>().CleanupAndMerge();
+        diffs.CleanupAndMerge();
 
         // assert
-        result.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void CleanupAndMerge_ShouldThrowArgumentNullException_WhenDiffsIsNull()
-    {
-        // arrange
-        // act
-        Action act = () => _ = DiffCollectionExtensions.CleanupAndMerge(null!);
-
-        // assert
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("diffs");
+        diffs.Should().BeEmpty();
     }
 
     [Fact]
@@ -368,10 +355,10 @@ public class DiffCollectionExtensionsTests
     {
         // arrange
         var operation = (Operation)Enum.ToObject(typeof(Operation), -1);
-        var diffs = new[] { new Diff(operation, "abc") };
+        var diffs = new List<Diff> { new(operation, "abc") };
 
         // act
-        Action act = () => _ = diffs.CleanupAndMerge();
+        var act = () => diffs.CleanupAndMerge();
 
         // assert
         act.Should()
@@ -383,64 +370,59 @@ public class DiffCollectionExtensionsTests
 
     // diff_cleanupSemanticLossless: Sentence boundaries
     [Fact]
-    public void CleanupSemanticLossless_ShouldAlignEqualitiesToSententBoundaries()
+    public void CleanupSemanticLossless_ShouldAlignEqualitiesToSentenceBoundaries()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "The xxx. The "),
-            new Diff(Operation.Insert, "zzz. The "),
-            new Diff(Operation.Equal, "yyy.")
+            new(Operation.Equal, "The xxx. The "),
+            new(Operation.Insert, "zzz. The "),
+            new(Operation.Equal, "yyy.")
         };
 
-        var expected = new[]
+        var expected = new List<Diff>
         {
-            new Diff(Operation.Equal, "The xxx."),
-            new Diff(Operation.Insert, " The zzz."),
-            new Diff(Operation.Equal, " The yyy.")
+            new(Operation.Equal, "The xxx."),
+            new(Operation.Insert, " The zzz."),
+            new(Operation.Equal, " The yyy.")
         };
 
         // act
-        var actual = diffs.CleanupSemanticLossless();
+        diffs.CleanupSemanticLossless();
 
         // assert
-        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     [Fact]
     public void CleanupSemanticLossless_ShouldNotModifyDiffs_WhenDiffPatternCannotBeOptimized()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Insert, "a"),
-            new Diff(Operation.Equal, "b"),
-            new Diff(Operation.Delete, "c")
+            new(Operation.Insert, "a"),
+            new(Operation.Equal, "b"),
+            new(Operation.Delete, "c")
         };
 
         // act
-        var result = diffs.CleanupSemanticLossless();
+        diffs.CleanupSemanticLossless();
 
         // assert
-        result.Should().HaveCount(diffs.Length).And.ContainInOrder(diffs);
+        diffs.Should().HaveCount(diffs.Count).And.ContainInOrder(diffs);
     }
 
     [Fact]
     public void CleanupSemanticLossless_ShouldNotModifyDiffs_WhenDiffTextCannotBeOptimized()
     {
         // arrange
-        var diffs = new[]
-        {
-            new Diff(Operation.Equal, "a"),
-            new Diff(Operation.Insert, "b"),
-            new Diff(Operation.Equal, "c")
-        };
+        var diffs = new List<Diff> { new(Operation.Equal, "a"), new(Operation.Insert, "b"), new(Operation.Equal, "c") };
 
         // act
-        var result = diffs.CleanupSemanticLossless();
+        diffs.CleanupSemanticLossless();
 
         // assert
-        result.Should().HaveCount(diffs.Length).And.ContainInOrder(diffs);
+        diffs.Should().HaveCount(diffs.Count).And.ContainInOrder(diffs);
     }
 
     // diff_cleanupSemanticLossless: Hitting the start
@@ -448,20 +430,20 @@ public class DiffCollectionExtensionsTests
     public void CleanupSemanticLossless_ShouldRemoveRedundantEqualities_WhenLeadingEqualityCanBeMergedToTheRight()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "a"),
-            new Diff(Operation.Delete, "a"),
-            new Diff(Operation.Equal, "ax")
+            new(Operation.Equal, "a"),
+            new(Operation.Delete, "a"),
+            new(Operation.Equal, "ax")
         };
 
-        var expected = new[] { new Diff(Operation.Delete, "a"), new Diff(Operation.Equal, "aax") };
+        var expected = new List<Diff> { new(Operation.Delete, "a"), new(Operation.Equal, "aax") };
 
         // act
-        var actual = diffs.CleanupSemanticLossless();
+        diffs.CleanupSemanticLossless();
 
         // assert
-        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupSemanticLossless: Hitting the end
@@ -469,20 +451,20 @@ public class DiffCollectionExtensionsTests
     public void CleanupSemanticLossless_ShouldRemoveRedundantEqualities_WhenTrailingEqualityCanBeMergedToTheLeft()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "xa"),
-            new Diff(Operation.Delete, "a"),
-            new Diff(Operation.Equal, "a")
+            new(Operation.Equal, "xa"),
+            new(Operation.Delete, "a"),
+            new(Operation.Equal, "a")
         };
 
-        var expected = new[] { new Diff(Operation.Equal, "xaa"), new Diff(Operation.Delete, "a") };
+        var expected = new List<Diff> { new(Operation.Equal, "xaa"), new(Operation.Delete, "a") };
 
         // act
-        var actual = diffs.CleanupSemanticLossless();
+        diffs.CleanupSemanticLossless();
 
         // assert
-        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupSemanticLossless: Null case
@@ -490,11 +472,13 @@ public class DiffCollectionExtensionsTests
     public void CleanupSemanticLossless_ShouldReturnEmptyList_WhenDiffsIsEmpty()
     {
         // arrange
+        var diffs = new List<Diff>();
+
         // act
-        var result = Array.Empty<Diff>().CleanupSemanticLossless();
+        diffs.CleanupSemanticLossless();
 
         // assert
-        result.Should().BeEmpty();
+        diffs.Should().BeEmpty();
     }
 
     // diff_cleanupSemanticLossless: Alphanumeric boundaries
@@ -502,25 +486,25 @@ public class DiffCollectionExtensionsTests
     public void CleanupSemanticLossless_ShouldShiftSuffixesToTheRight_WhenDiffsCrossAlphanumericBoundaries()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "The-c"),
-            new Diff(Operation.Insert, "ow-and-the-c"),
-            new Diff(Operation.Equal, "at.")
+            new(Operation.Equal, "The-c"),
+            new(Operation.Insert, "ow-and-the-c"),
+            new(Operation.Equal, "at.")
         };
 
-        var expected = new[]
+        var expected = new List<Diff>
         {
-            new Diff(Operation.Equal, "The-"),
-            new Diff(Operation.Insert, "cow-and-the-"),
-            new Diff(Operation.Equal, "cat.")
+            new(Operation.Equal, "The-"),
+            new(Operation.Insert, "cow-and-the-"),
+            new(Operation.Equal, "cat.")
         };
 
         // act
-        var actual = diffs.CleanupSemanticLossless();
+        diffs.CleanupSemanticLossless();
 
         // assert
-        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupSemanticLossless: Blank lines
@@ -528,25 +512,25 @@ public class DiffCollectionExtensionsTests
     public void CleanupSemanticLossless_ShouldShiftSuffixesToTheRight_WhenDiffsCrossBlankLines()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "AAA\r\n\r\nBBB"),
-            new Diff(Operation.Insert, "\r\nDDD\r\n\r\nBBB"),
-            new Diff(Operation.Equal, "\r\nEEE")
+            new(Operation.Equal, "AAA\r\n\r\nBBB"),
+            new(Operation.Insert, "\r\nDDD\r\n\r\nBBB"),
+            new(Operation.Equal, "\r\nEEE")
         };
 
-        var expected = new[]
+        var expected = new List<Diff>
         {
-            new Diff(Operation.Equal, "AAA\r\n\r\n"),
-            new Diff(Operation.Insert, "BBB\r\nDDD\r\n\r\n"),
-            new Diff(Operation.Equal, "BBB\r\nEEE")
+            new(Operation.Equal, "AAA\r\n\r\n"),
+            new(Operation.Insert, "BBB\r\nDDD\r\n\r\n"),
+            new(Operation.Equal, "BBB\r\nEEE")
         };
 
         // act
-        var actual = diffs.CleanupSemanticLossless();
+        diffs.CleanupSemanticLossless();
 
         // assert
-        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupSemanticLossless: Line boundaries
@@ -554,25 +538,25 @@ public class DiffCollectionExtensionsTests
     public void CleanupSemanticLossless_ShouldShiftSuffixesToTheRight_WhenDiffsCrossLineBoundaries()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "AAA\r\nBBB"),
-            new Diff(Operation.Insert, " DDD\r\nBBB"),
-            new Diff(Operation.Equal, " EEE")
+            new(Operation.Equal, "AAA\r\nBBB"),
+            new(Operation.Insert, " DDD\r\nBBB"),
+            new(Operation.Equal, " EEE")
         };
 
-        var expected = new[]
+        var expected = new List<Diff>
         {
-            new Diff(Operation.Equal, "AAA\r\n"),
-            new Diff(Operation.Insert, "BBB DDD\r\n"),
-            new Diff(Operation.Equal, "BBB EEE")
+            new(Operation.Equal, "AAA\r\n"),
+            new(Operation.Insert, "BBB DDD\r\n"),
+            new(Operation.Equal, "BBB EEE")
         };
 
         // act
-        var actual = diffs.CleanupSemanticLossless();
+        diffs.CleanupSemanticLossless();
 
         // assert
-        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupSemanticLossless: Word boundaries
@@ -580,35 +564,24 @@ public class DiffCollectionExtensionsTests
     public void CleanupSemanticLossless_ShouldShiftSuffixesToTheRight_WhenDiffsCrossWordBoundaries()
     {
         // arrange
-        var diffs = new[]
+        var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "The c"),
-            new Diff(Operation.Insert, "ow and the c"),
-            new Diff(Operation.Equal, "at.")
+            new(Operation.Equal, "The c"),
+            new(Operation.Insert, "ow and the c"),
+            new(Operation.Equal, "at.")
         };
 
-        var expected = new[]
+        var expected = new List<Diff>
         {
-            new Diff(Operation.Equal, "The "),
-            new Diff(Operation.Insert, "cow and the "),
-            new Diff(Operation.Equal, "cat.")
+            new(Operation.Equal, "The "),
+            new(Operation.Insert, "cow and the "),
+            new(Operation.Equal, "cat.")
         };
 
         // act
-        var actual = diffs.CleanupSemanticLossless();
+        diffs.CleanupSemanticLossless();
 
         // assert
-        actual.Should().HaveCount(expected.Length).And.ContainInOrder(expected);
-    }
-
-    [Fact]
-    public void CleanupSemanticLossless_ShouldThrowArgumentNullException_WhenDiffsIsNull()
-    {
-        // arrange
-        // act
-        Action act = () => _ = DiffCollectionExtensions.CleanupSemanticLossless(null!);
-
-        // assert
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("diffs");
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 }
