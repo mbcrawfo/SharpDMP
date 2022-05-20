@@ -56,7 +56,7 @@ public static class DiffCollectionExtensions
                     case Operation.Equal:
                         if (numberOfDeletions + numberOfInsertions > 1)
                         {
-                            index = MergeInsertAndDeleteCommonalities(
+                            index = CleanupAndMerge_MergeInsertAndDeleteCommonalities(
                                 diffs,
                                 index,
                                 numberOfDeletions,
@@ -104,11 +104,30 @@ public static class DiffCollectionExtensions
             }
 
             // If any shifts were made we need another pass at reordering.  If not, we're done.
-            if (!OptimizeSingleEdits(diffs))
+            if (!CleanupAndMerge_OptimizeSingleEdits(diffs))
             {
                 break;
             }
         }
+    }
+
+    /// <summary>
+    ///     Reduces the number of edits by eliminating semantically trivial equalities.
+    /// </summary>
+    /// <param name="diffs"></param>
+    internal static void CleanupSemantic(this List<Diff> diffs)
+    {
+        Debug.Assert(diffs is not null, "diffs is not null");
+
+        // Eliminating small equalities will produce new deletions and insertions that need to be merged together with
+        // existing edits.
+        if (diffs.CleanupSemantic_EliminateTrivialEqualities())
+        {
+            diffs.CleanupAndMerge();
+        }
+
+        diffs.CleanupSemanticLossless();
+        diffs.CleanupSemantic_ExtractOverlappingEdits();
     }
 
     /// <summary>
@@ -138,7 +157,7 @@ public static class DiffCollectionExtensions
                 continue;
             }
 
-            var (bestPrevious, bestEdit, bestNext) = CleanupSemanticOptimizeDiffText(
+            var (bestPrevious, bestEdit, bestNext) = CleanupSemanticLossless_OptimizeDiffText(
                 previousDiff.Text,
                 currentDiff.Text,
                 nextDiff.Text
@@ -175,140 +194,6 @@ public static class DiffCollectionExtensions
     }
 
     /// <summary>
-    ///     Given the text of an equality, an edit, and a second equality, optimize the text to align with word
-    ///     boundaries.
-    /// </summary>
-    /// <param name="originalPreviousText">
-    ///     The text of the first equality.
-    /// </param>
-    /// <param name="originalCurrentText">
-    ///     The text of the edit.
-    /// </param>
-    /// <param name="originalNextText">
-    ///     The text of the second equality.
-    /// </param>
-    /// <returns>
-    ///     The most optimized permutation of the texts that could be found.
-    /// </returns>
-    private static (string bestPrevious, string bestEdit, string bestNext) CleanupSemanticOptimizeDiffText(
-        string originalPreviousText,
-        string originalCurrentText,
-        string originalNextText
-    )
-    {
-        // Early out - optimizations require prev/current to share a suffix, or current/next to share a prefix.
-        if (
-            originalPreviousText.LastCharOrDefault() != originalCurrentText.LastCharOrDefault()
-            && originalCurrentText.FirstCharOrDefault() != originalNextText.FirstCharOrDefault()
-        )
-        {
-            return (originalPreviousText, originalCurrentText, originalNextText);
-        }
-
-        var previous = new StringBuilder(originalPreviousText);
-        var edit = new StringBuilder(originalCurrentText);
-        var next = new StringBuilder(originalNextText);
-
-        // Shift the edit as far left as possible.
-        var suffixLength = originalPreviousText.AsSpan().FindCommonSuffix(originalCurrentText);
-        if (suffixLength is not 0)
-        {
-            var suffix = originalCurrentText.AsSpan()[^suffixLength..];
-            previous.Remove(previous.Length - suffixLength, suffixLength);
-            edit.Insert(0, suffix).Remove(edit.Length - suffixLength, suffixLength);
-            next.Insert(0, suffix);
-        }
-
-        var bestPrevious = previous.ToString();
-        var bestEdit = edit.ToString();
-        var bestNext = next.ToString();
-        var bestScore = CleanupSemanticScore(previous, edit) + CleanupSemanticScore(edit, next);
-
-        // Step character by character to the right, looking for the text that fits best.
-        while (edit.Length is not 0 && next.Length is not 0 && edit[0] == next[0])
-        {
-            previous.Append(edit[0]);
-            edit.Remove(0, 1).Append(next[0]);
-            next.Remove(0, 1);
-
-            var score = CleanupSemanticScore(previous, edit) + CleanupSemanticScore(edit, next);
-            // Using >= encourages trailing rather than leading whitespace on edits.
-            if (score >= bestScore)
-            {
-                bestScore = score;
-                bestPrevious = previous.ToString();
-                bestEdit = edit.ToString();
-                bestNext = next.ToString();
-            }
-        }
-
-        return (bestPrevious, bestEdit, bestNext);
-    }
-
-    /// <summary>
-    ///     Given two strings, comuptes a score representing whether the boundary of the strings falls on logical
-    ///     boundaries.
-    /// </summary>
-    /// <remarks>
-    ///     Each port of this method behaves slightly differently due to subtle difference in each language's
-    ///     definition of things like 'whitespace'.  Since this method's purpose is largely cosmetic, the choice has
-    ///     been made to use each language's native features rather than forcing total conformity.
-    /// </remarks>
-    /// <param name="text1"></param>
-    /// <param name="text2"></param>
-    /// <returns>
-    ///     A score in the range [0, 6], with 6 being the best score.
-    /// </returns>
-    private static int CleanupSemanticScore(StringBuilder text1, StringBuilder text2)
-    {
-        // Early out - edges are the best.
-        if (text1.Length is 0 || text2.Length is 0)
-        {
-            return 6;
-        }
-
-        var char1 = text1[^1];
-        var nonAlphaNumeric1 = !char.IsLetterOrDigit(char1);
-        var whitespace1 = nonAlphaNumeric1 && char.IsWhiteSpace(char1);
-        var lineBreak1 = whitespace1 && char.IsControl(char1);
-        var blankLine1 = lineBreak1 && text1.EndsWithBlankLine();
-
-        var char2 = text2[0];
-        var nonAlphaNumeric2 = !char.IsLetterOrDigit(char2);
-        var whitespace2 = nonAlphaNumeric2 && char.IsWhiteSpace(char2);
-        var lineBreak2 = whitespace2 && char.IsControl(char2);
-        var blankLine2 = lineBreak2 && text2.StartsWithBlankLine();
-
-        if (blankLine1 || blankLine2)
-        {
-            return 5;
-        }
-
-        if (lineBreak1 || lineBreak2)
-        {
-            return 4;
-        }
-
-        // End of sentence.
-        if (nonAlphaNumeric1 && !whitespace1 && whitespace2)
-        {
-            return 3;
-        }
-
-        if (whitespace1 || whitespace2)
-        {
-            return 2;
-        }
-
-        if (nonAlphaNumeric1 || nonAlphaNumeric2)
-        {
-            return 1;
-        }
-
-        return 0;
-    }
-
-    /// <summary>
     ///     When the current diff is an equality preceeded by insertions or deletions, see if we can merge together
     ///     any common prefixes or suffixes from the previous diffs.
     /// </summary>
@@ -319,7 +204,7 @@ public static class DiffCollectionExtensions
     /// <param name="numberOfInsertions"></param>
     /// <param name="textInserted"></param>
     /// <returns></returns>
-    private static int MergeInsertAndDeleteCommonalities(
+    private static int CleanupAndMerge_MergeInsertAndDeleteCommonalities(
         List<Diff> diffs,
         int index,
         int numberOfDeletions,
@@ -415,42 +300,315 @@ public static class DiffCollectionExtensions
     /// <returns>
     ///     True if any changes were made to <paramref name="diffs" />.
     /// </returns>
-    private static bool OptimizeSingleEdits(IList<Diff> diffs)
+    private static bool CleanupAndMerge_OptimizeSingleEdits(IList<Diff> diffs)
     {
         var changes = false;
 
         // Intentionally ignore the first and last element (they don't qualifity).
-        var index = 1;
-        while (index < diffs.Count - 1)
+        for (var index = 1; index < diffs.Count - 1; index++)
         {
             var previousDiff = diffs[index - 1];
             var currentDiff = diffs[index];
             var nextDiff = diffs[index + 1];
 
-            if (previousDiff.Operation is Operation.Equal && nextDiff.Operation is Operation.Equal)
+            if (previousDiff.Operation is not Operation.Equal || nextDiff.Operation is not Operation.Equal)
             {
-                if (currentDiff.Text.EndsWith(previousDiff.Text, StringComparison.Ordinal))
+                continue;
+            }
+
+            if (currentDiff.Text.EndsWith(previousDiff.Text, StringComparison.Ordinal))
+            {
+                diffs[index] = currentDiff with
                 {
-                    diffs[index] = currentDiff with
-                    {
-                        Text = previousDiff.Text + currentDiff.Text[..^previousDiff.Text.Length]
-                    };
-                    diffs[index + 1] = nextDiff with { Text = previousDiff.Text + nextDiff.Text };
-                    diffs.RemoveAt(index - 1);
-                    changes = true;
-                }
-                else if (currentDiff.Text.StartsWith(nextDiff.Text, StringComparison.Ordinal))
+                    Text = previousDiff.Text + currentDiff.Text[..^previousDiff.Text.Length]
+                };
+                diffs[index + 1] = nextDiff with { Text = previousDiff.Text + nextDiff.Text };
+                diffs.RemoveAt(index - 1);
+
+                changes = true;
+            }
+            else if (currentDiff.Text.StartsWith(nextDiff.Text, StringComparison.Ordinal))
+            {
+                diffs[index - 1] = previousDiff with { Text = previousDiff.Text + nextDiff.Text };
+                diffs[index] = currentDiff with { Text = currentDiff.Text[nextDiff.Text.Length..] + nextDiff.Text };
+                diffs.RemoveAt(index + 1);
+
+                changes = true;
+            }
+        }
+
+        return changes;
+    }
+
+    /// <summary>
+    ///     Eliminates equalities that are smaller than or equal to the edits on both sides of the equality.
+    /// </summary>
+    /// <param name="diffs"></param>
+    /// <returns>
+    ///     True if any changes were made to <paramref name="diffs" />.
+    /// </returns>
+    private static bool CleanupSemantic_EliminateTrivialEqualities(this List<Diff> diffs)
+    {
+        var changes = false;
+
+        // Tracks the indices where equalities are found.
+        var equalities = new Stack<int>();
+
+        // Track the number of characters changed before and after the last equality found.
+        var deletionsBeforeEquality = 0;
+        var insertionsBeforeEquality = 0;
+        var deletionsAfterEquality = 0;
+        var insertionsAfterEquality = 0;
+
+        for (var index = 0; index < diffs.Count; index++)
+        {
+            var currentDiff = diffs[index];
+            if (currentDiff.Operation is Operation.Equal)
+            {
+                equalities.Push(index);
+                deletionsBeforeEquality = deletionsAfterEquality;
+                insertionsBeforeEquality = insertionsAfterEquality;
+                deletionsAfterEquality = 0;
+                insertionsAfterEquality = 0;
+            }
+            else
+            {
+                if (currentDiff.Operation is Operation.Insert)
                 {
-                    diffs[index - 1] = previousDiff with { Text = previousDiff.Text + nextDiff.Text };
-                    diffs[index] = currentDiff with { Text = currentDiff.Text[nextDiff.Text.Length..] + nextDiff.Text };
-                    diffs.RemoveAt(index + 1);
-                    changes = true;
+                    insertionsAfterEquality += currentDiff.Text.Length;
                 }
+                else
+                {
+                    Debug.Assert(
+                        currentDiff.Operation is Operation.Delete,
+                        "currentDiff.Operation is Operation.Delete"
+                    );
+                    deletionsAfterEquality += currentDiff.Text.Length;
+                }
+
+                if (!equalities.TryPeek(out var lastEqualityIndex))
+                {
+                    continue;
+                }
+
+                Debug.Assert(lastEqualityIndex < diffs.Count, "lastEqualityIndex < diffs.Count");
+
+                var (op, lastEquality) = diffs[lastEqualityIndex];
+                Debug.Assert(op is Operation.Equal, "op is Operation.Equal");
+
+                // Eliminate the equality if it's smaller or equal to the edits on both sides.
+                var editsBefore = Math.Max(deletionsBeforeEquality, insertionsBeforeEquality);
+                var editsAfter = Math.Max(deletionsAfterEquality, insertionsAfterEquality);
+                if (lastEquality.Length > Math.Min(editsBefore, editsAfter))
+                {
+                    continue;
+                }
+
+                // Transform the equality into a deletion and insertion that can be merged with existing edits by
+                // later optimizations.
+                diffs.Insert(lastEqualityIndex, new Diff(Operation.Delete, lastEquality));
+                diffs[lastEqualityIndex + 1] = diffs[lastEqualityIndex + 1] with { Operation = Operation.Insert };
+
+                // Clear the edit we just replaced.
+                equalities.Pop();
+
+                // If there was an equality that couldn't be replaced before the one we just replaced, the new deletion
+                // and insertion may have changed the math for it, so we need to check it again.
+                equalities.TryPop(out _);
+
+                // Pick up from the 2nd equality back if there is one, otherwise start over from the beginning.
+                index = equalities.TryPeek(out var i) ? i : -1;
+                deletionsBeforeEquality = 0;
+                insertionsBeforeEquality = 0;
+                deletionsAfterEquality = 0;
+                insertionsAfterEquality = 0;
+
+                changes = true;
+            }
+        }
+
+        return changes;
+    }
+
+    /// <summary>
+    ///     Find and eliminate overlaps between deletions and insertions where the overlap is as large as the edit
+    ///     ahead or behind it.
+    /// </summary>
+    /// <param name="diffs"></param>
+    private static void CleanupSemantic_ExtractOverlappingEdits(this List<Diff> diffs)
+    {
+        for (var index = 1; index < diffs.Count; index++)
+        {
+            var previousDiff = diffs[index - 1];
+            var currentDiff = diffs[index];
+
+            if (previousDiff.Operation is not Operation.Delete || currentDiff.Operation is not Operation.Insert)
+            {
+                continue;
+            }
+
+            var deletion = previousDiff.Text;
+            var insertion = currentDiff.Text;
+            var halfMaxEditLength = Math.Min(deletion.Length, insertion.Length) / 2.0;
+            var deletionToInsertionOverlap = deletion.AsSpan().FindCommonOverlap(insertion);
+            var insertionToDeletionOverlap = insertion.AsSpan().FindCommonOverlap(deletion);
+
+            if (deletionToInsertionOverlap >= insertionToDeletionOverlap)
+            {
+                if (deletionToInsertionOverlap >= halfMaxEditLength)
+                {
+                    diffs[index - 1] = previousDiff with { Text = deletion[..^deletionToInsertionOverlap] };
+                    diffs.Insert(index, new Diff(Operation.Equal, insertion[..deletionToInsertionOverlap]));
+                    diffs[index + 1] = currentDiff with { Text = insertion[deletionToInsertionOverlap..] };
+
+                    index += 1;
+                }
+            }
+            else if (insertionToDeletionOverlap >= halfMaxEditLength)
+            {
+                diffs[index - 1] = currentDiff with { Text = insertion[..^insertionToDeletionOverlap] };
+                diffs.Insert(index, new Diff(Operation.Equal, deletion[..insertionToDeletionOverlap]));
+                diffs[index + 1] = previousDiff with { Text = deletion[insertionToDeletionOverlap..] };
+
+                index += 1;
             }
 
             index += 1;
         }
+    }
 
-        return changes;
+    /// <summary>
+    ///     Given the text of an equality, an edit, and a second equality, optimize the text to align with word
+    ///     boundaries.
+    /// </summary>
+    /// <param name="originalPreviousText">
+    ///     The text of the first equality.
+    /// </param>
+    /// <param name="originalCurrentText">
+    ///     The text of the edit.
+    /// </param>
+    /// <param name="originalNextText">
+    ///     The text of the second equality.
+    /// </param>
+    /// <returns>
+    ///     The most optimized permutation of the texts that could be found.
+    /// </returns>
+    private static (string bestPrevious, string bestEdit, string bestNext) CleanupSemanticLossless_OptimizeDiffText(
+        string originalPreviousText,
+        string originalCurrentText,
+        string originalNextText
+    )
+    {
+        // Early out - optimizations require prev/current to share a suffix, or current/next to share a prefix.
+        if (
+            originalPreviousText.LastCharOrDefault() != originalCurrentText.LastCharOrDefault()
+            && originalCurrentText.FirstCharOrDefault() != originalNextText.FirstCharOrDefault()
+        )
+        {
+            return (originalPreviousText, originalCurrentText, originalNextText);
+        }
+
+        var previous = new StringBuilder(originalPreviousText);
+        var edit = new StringBuilder(originalCurrentText);
+        var next = new StringBuilder(originalNextText);
+
+        // Shift the edit as far left as possible.
+        var suffixLength = originalPreviousText.AsSpan().FindCommonSuffix(originalCurrentText);
+        if (suffixLength is not 0)
+        {
+            var suffix = originalCurrentText.AsSpan()[^suffixLength..];
+            previous.Remove(previous.Length - suffixLength, suffixLength);
+            edit.Insert(0, suffix).Remove(edit.Length - suffixLength, suffixLength);
+            next.Insert(0, suffix);
+        }
+
+        var bestPrevious = previous.ToString();
+        var bestEdit = edit.ToString();
+        var bestNext = next.ToString();
+        var bestScore = SemanticScore(previous, edit) + SemanticScore(edit, next);
+
+        // Step character by character to the right, looking for the text that fits best.
+        while (edit.Length is not 0 && next.Length is not 0 && edit[0] == next[0])
+        {
+            previous.Append(edit[0]);
+            edit.Remove(0, 1).Append(next[0]);
+            next.Remove(0, 1);
+
+            var score = SemanticScore(previous, edit) + SemanticScore(edit, next);
+            // Using >= encourages trailing rather than leading whitespace on edits.
+            if (score >= bestScore)
+            {
+                bestScore = score;
+                bestPrevious = previous.ToString();
+                bestEdit = edit.ToString();
+                bestNext = next.ToString();
+            }
+        }
+
+        return (bestPrevious, bestEdit, bestNext);
+    }
+
+    /// <summary>
+    ///     Given two strings, comuptes a score representing whether the boundary of the strings falls on logical
+    ///     boundaries.
+    /// </summary>
+    /// <remarks>
+    ///     Each port of this method behaves slightly differently due to subtle difference in each language's
+    ///     definition of things like 'whitespace'.  Since this method's purpose is largely cosmetic, the choice has
+    ///     been made to use each language's native features rather than forcing total conformity.
+    ///     Replaces <code>diff_cleanupSemanticScore</code>.
+    /// </remarks>
+    /// <param name="text1"></param>
+    /// <param name="text2"></param>
+    /// <returns>
+    ///     A score in the range [0, 6], with 6 being the best score.
+    /// </returns>
+    private static int SemanticScore(StringBuilder text1, StringBuilder text2)
+    {
+        // Early out - edges are the best.
+        if (text1.Length is 0 || text2.Length is 0)
+        {
+            return 6;
+        }
+
+        var char1 = text1[^1];
+        var nonAlphaNumeric1 = !char.IsLetterOrDigit(char1);
+        var whitespace1 = nonAlphaNumeric1 && char.IsWhiteSpace(char1);
+        var lineBreak1 = whitespace1 && char.IsControl(char1);
+        var blankLine1 = lineBreak1 && text1.EndsWithBlankLine();
+
+        var char2 = text2[0];
+        var nonAlphaNumeric2 = !char.IsLetterOrDigit(char2);
+        var whitespace2 = nonAlphaNumeric2 && char.IsWhiteSpace(char2);
+        var lineBreak2 = whitespace2 && char.IsControl(char2);
+        var blankLine2 = lineBreak2 && text2.StartsWithBlankLine();
+
+        if (blankLine1 || blankLine2)
+        {
+            return 5;
+        }
+
+        if (lineBreak1 || lineBreak2)
+        {
+            return 4;
+        }
+
+        // End of sentence.
+        if (nonAlphaNumeric1 && !whitespace1 && whitespace2)
+        {
+            return 3;
+        }
+
+        if (whitespace1 || whitespace2)
+        {
+            return 2;
+        }
+
+        if (nonAlphaNumeric1 || nonAlphaNumeric2)
+        {
+            return 1;
+        }
+
+        return 0;
     }
 }

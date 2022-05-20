@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using SharpDmp.Data;
 using SharpDmp.Extensions;
@@ -118,6 +120,47 @@ public class DiffCollectionExtensionsTests
 
         // act
         diffs.CleanupAndMerge();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    public static IEnumerable DiffsThatCanNotBeOptimizedTestCases =>
+        new object[]
+        {
+            new object[]
+            {
+                new List<Diff>
+                {
+                    new Diff(Operation.Delete, "ab"),
+                    new Diff(Operation.Insert, "cd"),
+                    new Diff(Operation.Equal, "12"),
+                    new Diff(Operation.Delete, "e"),
+                }
+            },
+            new object[]
+            {
+                new List<Diff>
+                {
+                    new Diff(Operation.Delete, "abc"),
+                    new Diff(Operation.Insert, "ABC"),
+                    new Diff(Operation.Equal, "1234"),
+                    new Diff(Operation.Delete, "wxyz"),
+                }
+            }
+        };
+
+    // diff_cleanupSemantic: No elimination #1
+    // diff_cleanupSemantic: No elimination #2
+    [Theory]
+    [MemberData(nameof(DiffsThatCanNotBeOptimizedTestCases))]
+    public void CleanupSemantic_ShouldNotModifyInput_WhenDiffsCanNotBeOptimized(List<Diff> diffs)
+    {
+        // arrange
+        var expected = diffs.ToList();
+
+        // act
+        diffs.CleanupSemantic();
 
         // assert
         diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
@@ -366,6 +409,207 @@ public class DiffCollectionExtensionsTests
             .WithMessage($"*invalid {nameof(Operation)}*")
             .And.ParamName.Should()
             .Be("diffs");
+    }
+
+    // diff_cleanupSemantic: Simple elimination
+    [Fact]
+    public void CleanupSemantic_ShouldMergeEqualityIntoSurroundingEdits_WhenEqualityIsShorterThanSurroundingEdits()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new Diff(Operation.Delete, "a"),
+            new Diff(Operation.Equal, "b"),
+            new Diff(Operation.Delete, "c")
+        };
+
+        var expected = new List<Diff> { new Diff(Operation.Delete, "abc"), new Diff(Operation.Insert, "b") };
+
+        // act
+        diffs.CleanupSemantic();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemantic: Backpass elimination
+    [Fact]
+    public void CleanupSemantic_ShouldMergeEqualityIntoSurroundingEdits_WhenFullOptimizationRequiresBacktrackingAfterAPreviousOptimization()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new Diff(Operation.Delete, "ab"),
+            new Diff(Operation.Equal, "cd"),
+            new Diff(Operation.Delete, "e"),
+            new Diff(Operation.Equal, "f"),
+            new Diff(Operation.Insert, "g")
+        };
+
+        var expected = new List<Diff> { new Diff(Operation.Delete, "abcdef"), new Diff(Operation.Insert, "cdfg") };
+
+        // act
+        diffs.CleanupSemantic();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemantic: Multiple elimination
+    [Fact]
+    public void CleanupSemantic_ShouldMergeEqualityIntoSurroundingEdits_WhenFullOptimizationRequiresBacktrackingMultipleTimes()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new Diff(Operation.Insert, "1"),
+            new Diff(Operation.Equal, "A"),
+            new Diff(Operation.Delete, "B"),
+            new Diff(Operation.Insert, "2"),
+            new Diff(Operation.Equal, "_"),
+            new Diff(Operation.Insert, "1"),
+            new Diff(Operation.Equal, "A"),
+            new Diff(Operation.Delete, "B"),
+            new Diff(Operation.Insert, "2")
+        };
+
+        var expected = new List<Diff> { new Diff(Operation.Delete, "AB_AB"), new Diff(Operation.Insert, "1A2_1A2") };
+
+        // act
+        diffs.CleanupSemantic();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemantic: No overlap elimination
+    [Fact]
+    public void CleanupSemantic_ShouldNotModifyInput_WhenDeletionsAndInsertionsHaveShortOverlap()
+    {
+        // arrange
+        var diffs = new List<Diff> { new Diff(Operation.Delete, "abcxx"), new Diff(Operation.Insert, "xxdef") };
+
+        var expected = new List<Diff> { new Diff(Operation.Delete, "abcxx"), new Diff(Operation.Insert, "xxdef") };
+
+        // act
+        diffs.CleanupSemantic();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemantic: Null case
+    [Fact]
+    public void CleanupSemantic_ShouldNotModifyInput_WhenInputIsEmpty()
+    {
+        // arrange
+        var diffs = new List<Diff>();
+
+        // act
+        diffs.CleanupSemantic();
+
+        // assert
+        diffs.Should().BeEmpty();
+    }
+
+    // diff_cleanupSemantic: Word boundaries
+    [Fact]
+    public void CleanupSemantic_ShouldOptimizeDiffsAlongWordBoundaries()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new Diff(Operation.Equal, "The c"),
+            new Diff(Operation.Delete, "ow and the c"),
+            new Diff(Operation.Equal, "at.")
+        };
+
+        var expected = new List<Diff>
+        {
+            new Diff(Operation.Equal, "The "),
+            new Diff(Operation.Delete, "cow and the "),
+            new Diff(Operation.Equal, "cat.")
+        };
+
+        // act
+        diffs.CleanupSemantic();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemantic: Reverse overlap elimination
+    [Fact]
+    public void CleanupSemantic_ShouldShiftOverlappingEditsIntoAnEquality_WhenDeletionPrefixOverlapsInsertSuffix()
+    {
+        // arrange
+        var diffs = new List<Diff> { new Diff(Operation.Delete, "xxxabc"), new Diff(Operation.Insert, "defxxx") };
+
+        var expected = new List<Diff>
+        {
+            new Diff(Operation.Insert, "def"),
+            new Diff(Operation.Equal, "xxx"),
+            new Diff(Operation.Delete, "abc"),
+        };
+
+        // act
+        diffs.CleanupSemantic();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemantic: Overlap elimination
+    [Fact]
+    public void CleanupSemantic_ShouldShiftOverlappingEditsIntoAnEquality_WhenDeletionSuffixOverlapsInsertPrefix()
+    {
+        // arrange
+        var diffs = new List<Diff> { new Diff(Operation.Delete, "abcxxx"), new Diff(Operation.Insert, "xxxdef") };
+
+        var expected = new List<Diff>
+        {
+            new Diff(Operation.Delete, "abc"),
+            new Diff(Operation.Equal, "xxx"),
+            new Diff(Operation.Insert, "def")
+        };
+
+        // act
+        diffs.CleanupSemantic();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupSemantic: Two overlap eliminations
+    [Fact]
+    public void CleanupSemantic_ShouldShiftOverlappingEditsIntoAnEquality_WhenMultipleEditsCanBeOptimized()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new Diff(Operation.Delete, "abcd1212"),
+            new Diff(Operation.Insert, "1212efghi"),
+            new Diff(Operation.Equal, "----"),
+            new Diff(Operation.Delete, "A3"),
+            new Diff(Operation.Insert, "3BC")
+        };
+
+        var expected = new List<Diff>
+        {
+            new Diff(Operation.Delete, "abcd"),
+            new Diff(Operation.Equal, "1212"),
+            new Diff(Operation.Insert, "efghi"),
+            new Diff(Operation.Equal, "----"),
+            new Diff(Operation.Delete, "A"),
+            new Diff(Operation.Equal, "3"),
+            new Diff(Operation.Insert, "BC")
+        };
+
+        // act
+        diffs.CleanupSemantic();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
     }
 
     // diff_cleanupSemanticLossless: Sentence boundaries
