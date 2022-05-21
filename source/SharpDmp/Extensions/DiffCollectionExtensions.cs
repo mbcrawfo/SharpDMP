@@ -355,10 +355,10 @@ public static class DiffCollectionExtensions
         var equalities = new Stack<int>();
 
         // Track the number of characters changed before and after the last equality found.
-        var deletionsBeforeEquality = 0;
-        var insertionsBeforeEquality = 0;
-        var deletionsAfterEquality = 0;
-        var insertionsAfterEquality = 0;
+        var beforeEquality = (d: 0, i: 0);
+        var afterEquality = beforeEquality;
+
+        static int Max((int d, int i) tuple) => Math.Max(tuple.d, tuple.i);
 
         for (var index = 0; index < diffs.Count; index++)
         {
@@ -366,25 +366,22 @@ public static class DiffCollectionExtensions
             if (currentDiff.Operation is Operation.Equal)
             {
                 equalities.Push(index);
-                deletionsBeforeEquality = deletionsAfterEquality;
-                insertionsBeforeEquality = insertionsAfterEquality;
-                deletionsAfterEquality = 0;
-                insertionsAfterEquality = 0;
+                beforeEquality = afterEquality;
+                afterEquality = (0, 0);
             }
             else
             {
-                if (currentDiff.Operation is Operation.Insert)
+                Debug.Assert(
+                    currentDiff.Operation is Operation.Delete or Operation.Insert,
+                    "currentDiff.Operation is Operation.Delete or Operation.Insert"
+                );
+#pragma warning disable CS8509
+                afterEquality = currentDiff.Operation switch
                 {
-                    insertionsAfterEquality += currentDiff.Text.Length;
-                }
-                else
-                {
-                    Debug.Assert(
-                        currentDiff.Operation is Operation.Delete,
-                        "currentDiff.Operation is Operation.Delete"
-                    );
-                    deletionsAfterEquality += currentDiff.Text.Length;
-                }
+                    Operation.Delete => afterEquality with { d = afterEquality.d + currentDiff.Text.Length },
+                    Operation.Insert => afterEquality with { i = afterEquality.i + currentDiff.Text.Length },
+                };
+#pragma warning restore CS8509
 
                 if (!equalities.TryPeek(out var lastEqualityIndex))
                 {
@@ -397,9 +394,7 @@ public static class DiffCollectionExtensions
                 Debug.Assert(op is Operation.Equal, "op is Operation.Equal");
 
                 // Eliminate the equality if it's smaller or equal to the edits on both sides.
-                var editsBefore = Math.Max(deletionsBeforeEquality, insertionsBeforeEquality);
-                var editsAfter = Math.Max(deletionsAfterEquality, insertionsAfterEquality);
-                if (lastEquality.Length > Math.Min(editsBefore, editsAfter))
+                if (lastEquality.Length > Math.Min(Max(beforeEquality), Max(afterEquality)))
                 {
                     continue;
                 }
@@ -418,11 +413,9 @@ public static class DiffCollectionExtensions
 
                 // Pick up from the 2nd equality back if there is one, otherwise start over from the beginning.
                 index = equalities.TryPeek(out var i) ? i : -1;
-                deletionsBeforeEquality = 0;
-                insertionsBeforeEquality = 0;
-                deletionsAfterEquality = 0;
-                insertionsAfterEquality = 0;
 
+                beforeEquality = (0, 0);
+                afterEquality = (0, 0);
                 changes = true;
             }
         }
