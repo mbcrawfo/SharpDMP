@@ -112,8 +112,147 @@ public static class DiffCollectionExtensions
     }
 
     /// <summary>
+    ///     Reduces the number of edits by eliminating operationally trivial equalities.
+    /// </summary>
+    /// <remarks>
+    ///     Replaces <code>diff_cleanupEfficiency</code>.
+    /// </remarks>
+    /// <param name="diffs">
+    ///     The diffs to be optimized.
+    /// </param>
+    /// <param name="editCost">
+    ///     The cost of an empty edit operation in terms of edit characters.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     One of the items in <paramref name="diffs" /> contains an invalid <see cref="Operation" /> value.
+    /// </exception>
+    internal static void CleanupEfficiency(this List<Diff> diffs, int editCost = 4)
+    {
+        Debug.Assert(diffs is not null, "diffs is not null");
+        Debug.Assert(editCost > 0, "editCost > 0");
+
+        var changes = false;
+
+        // Track indices of equalities that are candidates to be eliminated.
+        var equalities = new Stack<int>();
+
+        // Have edits occurred before or after the last equality?
+        var beforeEquality = (d: false, i: false);
+        var afterEquality = beforeEquality;
+
+        static bool Both((bool d, bool i) tuple) => tuple.d && tuple.i;
+        static bool Either((bool d, bool i) tuple) => tuple.d || tuple.i;
+
+        static int Sum((bool d, bool i) tuple) =>
+            Both(tuple)
+              ? 2
+              : Either(tuple)
+                  ? 1
+                  : 0;
+
+        for (var index = 0; index < diffs.Count; index++)
+        {
+            var currentDiff = diffs[index];
+
+            switch (currentDiff.Operation)
+            {
+                case Operation.Equal:
+                    if (currentDiff.Text.Length < editCost && Either(afterEquality))
+                    {
+                        // Equality is a candidate to eliminate.
+                        equalities.Push(index);
+                        beforeEquality = afterEquality;
+                    }
+                    else
+                    {
+                        // Equality is not a candidate and can never become one.
+                        equalities.Clear();
+                    }
+
+                    afterEquality = (false, false);
+                    break;
+
+                case Operation.Delete:
+                case Operation.Insert:
+#pragma warning disable CS8509
+                    afterEquality = currentDiff.Operation switch
+                    {
+                        Operation.Delete => afterEquality with { d = true },
+                        Operation.Insert => afterEquality with { i = true },
+                    };
+#pragma warning restore CS8509
+
+                    if (!equalities.TryPeek(out var lastEqualityIndex))
+                    {
+                        continue;
+                    }
+
+                    Debug.Assert(lastEqualityIndex < diffs.Count, "lastEqualityIndex < diffs.Count");
+                    var (op, lastEquality) = diffs[lastEqualityIndex];
+                    Debug.Assert(op is Operation.Equal, "op is Operation.Equal");
+
+                    // Five types to be split:
+                    // <ins>A</ins><del>B</del>XY<ins>C</ins><del>D</del>
+                    // <ins>A</ins>X<ins>C</ins><del>D</del>
+                    // <ins>A</ins><del>B</del>X<ins>C</ins>
+                    // <ins>A</ins>X<ins>C</ins><del>D</del>
+                    // <ins>A</ins><del>B</del>X<del>C</del>
+                    var sum = Sum(beforeEquality) + Sum(afterEquality);
+                    if (
+                        (lastEquality.Length is 0 || sum is not 4)
+                        && (lastEquality.Length >= editCost / 2 || sum is not 3)
+                    )
+                    {
+                        continue;
+                    }
+
+                    diffs.Insert(lastEqualityIndex, new Diff(Operation.Delete, lastEquality));
+                    diffs[lastEqualityIndex + 1] = diffs[lastEqualityIndex + 1] with { Operation = Operation.Insert };
+
+                    // Throw away the equality we just replaced.
+                    equalities.Pop();
+
+                    if (Both(beforeEquality))
+                    {
+                        // Changes were made that could affect the previous entry, so keep going.
+                        equalities.Clear();
+                        afterEquality = (true, true);
+                    }
+                    else
+                    {
+                        // Previous equality needs to be re-evaluated.
+                        equalities.TryPop(out _);
+
+                        // Jump back to the candidate equality before if one exists, otherwise restart.
+                        index = equalities.TryPeek(out var i) ? i : -1;
+
+                        afterEquality = (false, false);
+                    }
+
+                    changes = true;
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(diffs),
+                        currentDiff.Operation,
+                        $"{nameof(Diff)} contains an invalid {nameof(Operation)} value."
+                    );
+            }
+        }
+
+        if (changes)
+        {
+            diffs.CleanupAndMerge();
+        }
+    }
+
+    /// <summary>
     ///     Reduces the number of edits by eliminating semantically trivial equalities.
     /// </summary>
+    /// <remarks>
+    ///     Replaces <code>diff_cleanupSemantic</code>.
+    /// </remarks>
     /// <param name="diffs"></param>
     internal static void CleanupSemantic(this List<Diff> diffs)
     {

@@ -132,20 +132,20 @@ public class DiffCollectionExtensionsTests
             {
                 new List<Diff>
                 {
-                    new Diff(Operation.Delete, "ab"),
-                    new Diff(Operation.Insert, "cd"),
-                    new Diff(Operation.Equal, "12"),
-                    new Diff(Operation.Delete, "e"),
+                    new(Operation.Delete, "ab"),
+                    new(Operation.Insert, "cd"),
+                    new(Operation.Equal, "12"),
+                    new(Operation.Delete, "e"),
                 }
             },
             new object[]
             {
                 new List<Diff>
                 {
-                    new Diff(Operation.Delete, "abc"),
-                    new Diff(Operation.Insert, "ABC"),
-                    new Diff(Operation.Equal, "1234"),
-                    new Diff(Operation.Delete, "wxyz"),
+                    new(Operation.Delete, "abc"),
+                    new(Operation.Insert, "ABC"),
+                    new(Operation.Equal, "1234"),
+                    new(Operation.Delete, "wxyz"),
                 }
             }
         };
@@ -411,6 +411,154 @@ public class DiffCollectionExtensionsTests
             .Be("diffs");
     }
 
+    // diff_cleanupEfficiency: High cost elimination
+    [Fact]
+    public void CleanupEfficiency_ShouldMergeEqualityIntoSurroundingEdits_WhenUsingAHigherEditCost()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new(Operation.Delete, "ab"),
+            new(Operation.Insert, "12"),
+            new(Operation.Equal, "wxyz"),
+            new(Operation.Delete, "cd"),
+            new(Operation.Insert, "34")
+        };
+
+        var expected = new List<Diff> { new(Operation.Delete, "abwxyzcd"), new(Operation.Insert, "12wxyz34"), };
+
+        // act
+        diffs.CleanupEfficiency(editCost: 5);
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupEfficiency: Four-edit elimination
+    [Fact]
+    public void CleanupEfficiency_ShouldMergeEqualityIntoSurroundingEdits_WhenEqualityIsSurroundedByFourEdits()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new(Operation.Delete, "ab"),
+            new(Operation.Insert, "12"),
+            new(Operation.Equal, "xyz"),
+            new(Operation.Delete, "cd"),
+            new(Operation.Insert, "34")
+        };
+
+        var expected = new List<Diff> { new(Operation.Delete, "abxyzcd"), new(Operation.Insert, "12xyz34"), };
+
+        // act
+        diffs.CleanupEfficiency();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupEfficiency: Three-edit elimination
+    [Fact]
+    public void CleanupEfficiency_ShouldMergeEqualityIntoSurroundingEdits_WhenEqualityIsSurroundedByThreeEdits()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new(Operation.Insert, "12"),
+            new(Operation.Equal, "x"),
+            new(Operation.Delete, "cd"),
+            new(Operation.Insert, "34")
+        };
+
+        var expected = new List<Diff> { new(Operation.Delete, "xcd"), new(Operation.Insert, "12x34"), };
+
+        // act
+        diffs.CleanupEfficiency();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupEfficiency: Backpass elimination
+    [Fact]
+    public void CleanupEfficiency_ShouldMergeEqualityIntoSurroundingEdits_WhenFullOptimizationRequiresMultiplePasses()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new(Operation.Delete, "ab"),
+            new(Operation.Insert, "12"),
+            new(Operation.Equal, "xy"),
+            new(Operation.Insert, "34"),
+            new(Operation.Equal, "z"),
+            new(Operation.Delete, "cd"),
+            new(Operation.Insert, "56")
+        };
+
+        var expected = new List<Diff> { new(Operation.Delete, "abxyzcd"), new(Operation.Insert, "12xy34z56"), };
+
+        // act
+        diffs.CleanupEfficiency();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupEfficiency: No elimination
+    [Fact]
+    public void CleanupEfficiency_ShouldNotModifyInput_WhenInputCanNotBeOptimized()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new(Operation.Delete, "ab"),
+            new(Operation.Insert, "12"),
+            new(Operation.Equal, "wxyz"),
+            new(Operation.Delete, "cd"),
+            new(Operation.Insert, "34")
+        };
+
+        var expected = diffs.ToList();
+
+        // act
+        diffs.CleanupEfficiency();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupEfficiency: Null case
+    [Fact]
+    public void CleanupEfficiency_ShouldNotModifyInput_WhenInputIsEmpty()
+    {
+        // arrange
+        var diffs = new List<Diff>();
+
+        // act
+        diffs.CleanupEfficiency();
+
+        // assert
+        diffs.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CleanupEfficiency_ShouldThrowArgumentOutOfRangeException_WhenADiffHasAnUnknownOperation()
+    {
+        // arrange
+        var operation = (Operation)Enum.ToObject(typeof(Operation), -1);
+        var diffs = new List<Diff> { new(operation, "abc") };
+
+        // act
+        var act = () => diffs.CleanupEfficiency();
+
+        // assert
+        act.Should()
+            .Throw<ArgumentOutOfRangeException>()
+            .WithMessage($"*invalid {nameof(Operation)}*")
+            .And.ParamName.Should()
+            .Be("diffs");
+    }
+
     // diff_cleanupSemantic: Simple elimination
     [Fact]
     public void CleanupSemantic_ShouldMergeEqualityIntoSurroundingEdits_WhenEqualityIsShorterThanSurroundingEdits()
@@ -418,12 +566,12 @@ public class DiffCollectionExtensionsTests
         // arrange
         var diffs = new List<Diff>
         {
-            new Diff(Operation.Delete, "a"),
-            new Diff(Operation.Equal, "b"),
-            new Diff(Operation.Delete, "c")
+            new(Operation.Delete, "a"),
+            new(Operation.Equal, "b"),
+            new(Operation.Delete, "c")
         };
 
-        var expected = new List<Diff> { new Diff(Operation.Delete, "abc"), new Diff(Operation.Insert, "b") };
+        var expected = new List<Diff> { new(Operation.Delete, "abc"), new(Operation.Insert, "b") };
 
         // act
         diffs.CleanupSemantic();
@@ -439,14 +587,14 @@ public class DiffCollectionExtensionsTests
         // arrange
         var diffs = new List<Diff>
         {
-            new Diff(Operation.Delete, "ab"),
-            new Diff(Operation.Equal, "cd"),
-            new Diff(Operation.Delete, "e"),
-            new Diff(Operation.Equal, "f"),
-            new Diff(Operation.Insert, "g")
+            new(Operation.Delete, "ab"),
+            new(Operation.Equal, "cd"),
+            new(Operation.Delete, "e"),
+            new(Operation.Equal, "f"),
+            new(Operation.Insert, "g")
         };
 
-        var expected = new List<Diff> { new Diff(Operation.Delete, "abcdef"), new Diff(Operation.Insert, "cdfg") };
+        var expected = new List<Diff> { new(Operation.Delete, "abcdef"), new(Operation.Insert, "cdfg") };
 
         // act
         diffs.CleanupSemantic();
@@ -462,18 +610,18 @@ public class DiffCollectionExtensionsTests
         // arrange
         var diffs = new List<Diff>
         {
-            new Diff(Operation.Insert, "1"),
-            new Diff(Operation.Equal, "A"),
-            new Diff(Operation.Delete, "B"),
-            new Diff(Operation.Insert, "2"),
-            new Diff(Operation.Equal, "_"),
-            new Diff(Operation.Insert, "1"),
-            new Diff(Operation.Equal, "A"),
-            new Diff(Operation.Delete, "B"),
-            new Diff(Operation.Insert, "2")
+            new(Operation.Insert, "1"),
+            new(Operation.Equal, "A"),
+            new(Operation.Delete, "B"),
+            new(Operation.Insert, "2"),
+            new(Operation.Equal, "_"),
+            new(Operation.Insert, "1"),
+            new(Operation.Equal, "A"),
+            new(Operation.Delete, "B"),
+            new(Operation.Insert, "2")
         };
 
-        var expected = new List<Diff> { new Diff(Operation.Delete, "AB_AB"), new Diff(Operation.Insert, "1A2_1A2") };
+        var expected = new List<Diff> { new(Operation.Delete, "AB_AB"), new(Operation.Insert, "1A2_1A2") };
 
         // act
         diffs.CleanupSemantic();
@@ -487,9 +635,9 @@ public class DiffCollectionExtensionsTests
     public void CleanupSemantic_ShouldNotModifyInput_WhenDeletionsAndInsertionsHaveShortOverlap()
     {
         // arrange
-        var diffs = new List<Diff> { new Diff(Operation.Delete, "abcxx"), new Diff(Operation.Insert, "xxdef") };
+        var diffs = new List<Diff> { new(Operation.Delete, "abcxx"), new(Operation.Insert, "xxdef") };
 
-        var expected = new List<Diff> { new Diff(Operation.Delete, "abcxx"), new Diff(Operation.Insert, "xxdef") };
+        var expected = new List<Diff> { new(Operation.Delete, "abcxx"), new(Operation.Insert, "xxdef") };
 
         // act
         diffs.CleanupSemantic();
@@ -519,16 +667,16 @@ public class DiffCollectionExtensionsTests
         // arrange
         var diffs = new List<Diff>
         {
-            new Diff(Operation.Equal, "The c"),
-            new Diff(Operation.Delete, "ow and the c"),
-            new Diff(Operation.Equal, "at.")
+            new(Operation.Equal, "The c"),
+            new(Operation.Delete, "ow and the c"),
+            new(Operation.Equal, "at.")
         };
 
         var expected = new List<Diff>
         {
-            new Diff(Operation.Equal, "The "),
-            new Diff(Operation.Delete, "cow and the "),
-            new Diff(Operation.Equal, "cat.")
+            new(Operation.Equal, "The "),
+            new(Operation.Delete, "cow and the "),
+            new(Operation.Equal, "cat.")
         };
 
         // act
@@ -543,13 +691,13 @@ public class DiffCollectionExtensionsTests
     public void CleanupSemantic_ShouldShiftOverlappingEditsIntoAnEquality_WhenDeletionPrefixOverlapsInsertSuffix()
     {
         // arrange
-        var diffs = new List<Diff> { new Diff(Operation.Delete, "xxxabc"), new Diff(Operation.Insert, "defxxx") };
+        var diffs = new List<Diff> { new(Operation.Delete, "xxxabc"), new(Operation.Insert, "defxxx") };
 
         var expected = new List<Diff>
         {
-            new Diff(Operation.Insert, "def"),
-            new Diff(Operation.Equal, "xxx"),
-            new Diff(Operation.Delete, "abc"),
+            new(Operation.Insert, "def"),
+            new(Operation.Equal, "xxx"),
+            new(Operation.Delete, "abc"),
         };
 
         // act
@@ -564,13 +712,13 @@ public class DiffCollectionExtensionsTests
     public void CleanupSemantic_ShouldShiftOverlappingEditsIntoAnEquality_WhenDeletionSuffixOverlapsInsertPrefix()
     {
         // arrange
-        var diffs = new List<Diff> { new Diff(Operation.Delete, "abcxxx"), new Diff(Operation.Insert, "xxxdef") };
+        var diffs = new List<Diff> { new(Operation.Delete, "abcxxx"), new(Operation.Insert, "xxxdef") };
 
         var expected = new List<Diff>
         {
-            new Diff(Operation.Delete, "abc"),
-            new Diff(Operation.Equal, "xxx"),
-            new Diff(Operation.Insert, "def")
+            new(Operation.Delete, "abc"),
+            new(Operation.Equal, "xxx"),
+            new(Operation.Insert, "def")
         };
 
         // act
@@ -587,22 +735,22 @@ public class DiffCollectionExtensionsTests
         // arrange
         var diffs = new List<Diff>
         {
-            new Diff(Operation.Delete, "abcd1212"),
-            new Diff(Operation.Insert, "1212efghi"),
-            new Diff(Operation.Equal, "----"),
-            new Diff(Operation.Delete, "A3"),
-            new Diff(Operation.Insert, "3BC")
+            new(Operation.Delete, "abcd1212"),
+            new(Operation.Insert, "1212efghi"),
+            new(Operation.Equal, "----"),
+            new(Operation.Delete, "A3"),
+            new(Operation.Insert, "3BC")
         };
 
         var expected = new List<Diff>
         {
-            new Diff(Operation.Delete, "abcd"),
-            new Diff(Operation.Equal, "1212"),
-            new Diff(Operation.Insert, "efghi"),
-            new Diff(Operation.Equal, "----"),
-            new Diff(Operation.Delete, "A"),
-            new Diff(Operation.Equal, "3"),
-            new Diff(Operation.Insert, "BC")
+            new(Operation.Delete, "abcd"),
+            new(Operation.Equal, "1212"),
+            new(Operation.Insert, "efghi"),
+            new(Operation.Equal, "----"),
+            new(Operation.Delete, "A"),
+            new(Operation.Equal, "3"),
+            new(Operation.Insert, "BC")
         };
 
         // act
