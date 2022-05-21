@@ -7,6 +7,60 @@ namespace SharpDmp.Extensions;
 public static class DiffCollectionExtensions
 {
     /// <summary>
+    ///     Computes and returns the source text of a set of diffs (equalities and deletions).
+    /// </summary>
+    /// <remarks>
+    ///     Replaces <code>diff_text1</code>.
+    /// </remarks>
+    /// <param name="diffs"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="diffs"/> is null.
+    /// </exception>
+    public static string GetSourceText(this IEnumerable<Diff> diffs)
+    {
+        if (diffs is null)
+        {
+            throw new ArgumentNullException(nameof(diffs));
+        }
+
+        var sb = new StringBuilder();
+        foreach (var (_, text) in diffs.Where(d => d.Operation is not Operation.Insert))
+        {
+            sb.Append(text);
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    ///     Computes and returns the destination text of a set of diffs (equalities and insertions).
+    /// </summary>
+    /// <remarks>
+    ///     Replaces <code>diff_text2</code>.
+    /// </remarks>
+    /// <param name="diffs"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="diffs"/> is null.
+    /// </exception>
+    public static string GetDestinationText(this IEnumerable<Diff> diffs)
+    {
+        if (diffs is null)
+        {
+            throw new ArgumentNullException(nameof(diffs));
+        }
+
+        var sb = new StringBuilder();
+        foreach (var (_, text) in diffs.Where(d => d.Operation is not Operation.Delete))
+        {
+            sb.Append(text);
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
     ///     Reorder and merge together redundant edit sections.  Multiple equalities are merged together.  Any other
     ///     edit section can move as long as it doesn't cross an equality.
     /// </summary>

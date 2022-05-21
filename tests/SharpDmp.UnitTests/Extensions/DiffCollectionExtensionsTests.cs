@@ -411,29 +411,6 @@ public class DiffCollectionExtensionsTests
             .Be("diffs");
     }
 
-    // diff_cleanupEfficiency: High cost elimination
-    [Fact]
-    public void CleanupEfficiency_ShouldMergeEqualityIntoSurroundingEdits_WhenUsingAHigherEditCost()
-    {
-        // arrange
-        var diffs = new List<Diff>
-        {
-            new(Operation.Delete, "ab"),
-            new(Operation.Insert, "12"),
-            new(Operation.Equal, "wxyz"),
-            new(Operation.Delete, "cd"),
-            new(Operation.Insert, "34")
-        };
-
-        var expected = new List<Diff> { new(Operation.Delete, "abwxyzcd"), new(Operation.Insert, "12wxyz34"), };
-
-        // act
-        diffs.CleanupEfficiency(editCost: 5);
-
-        // assert
-        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
-    }
-
     // diff_cleanupEfficiency: Four-edit elimination
     [Fact]
     public void CleanupEfficiency_ShouldMergeEqualityIntoSurroundingEdits_WhenEqualityIsSurroundedByFourEdits()
@@ -499,6 +476,29 @@ public class DiffCollectionExtensionsTests
 
         // act
         diffs.CleanupEfficiency();
+
+        // assert
+        diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    // diff_cleanupEfficiency: High cost elimination
+    [Fact]
+    public void CleanupEfficiency_ShouldMergeEqualityIntoSurroundingEdits_WhenUsingAHigherEditCost()
+    {
+        // arrange
+        var diffs = new List<Diff>
+        {
+            new(Operation.Delete, "ab"),
+            new(Operation.Insert, "12"),
+            new(Operation.Equal, "wxyz"),
+            new(Operation.Delete, "cd"),
+            new(Operation.Insert, "34")
+        };
+
+        var expected = new List<Diff> { new(Operation.Delete, "abwxyzcd"), new(Operation.Insert, "12wxyz34"), };
+
+        // act
+        diffs.CleanupEfficiency(editCost: 5);
 
         // assert
         diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
@@ -975,5 +975,75 @@ public class DiffCollectionExtensionsTests
 
         // assert
         diffs.Should().HaveCount(expected.Count).And.ContainInOrder(expected);
+    }
+
+    [Fact]
+    public void GetDestinationText_ShouldReturnTheDestinationText()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Equal, "jump"),
+            new Diff(Operation.Delete, "s"),
+            new Diff(Operation.Insert, "ed"),
+            new Diff(Operation.Equal, " over "),
+            new Diff(Operation.Delete, "the"),
+            new Diff(Operation.Insert, "a"),
+            new Diff(Operation.Equal, " lazy")
+        };
+
+        const string expected = "jumped over a lazy";
+
+        // act
+        var actual = diffs.GetDestinationText();
+
+        // assert
+        actual.Should().Be(expected);
+    }
+
+    [Fact]
+    public void GetDestinationText_ShouldThrowArgumentNullException_WhenDiffsIsNull()
+    {
+        // arrange
+        // act
+        var act = () => DiffCollectionExtensions.GetDestinationText(null!);
+
+        // assert
+        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("diffs");
+    }
+
+    [Fact]
+    public void GetSourceText_ShouldReturnTheSourceText()
+    {
+        // arrange
+        var diffs = new[]
+        {
+            new Diff(Operation.Equal, "jump"),
+            new Diff(Operation.Delete, "s"),
+            new Diff(Operation.Insert, "ed"),
+            new Diff(Operation.Equal, " over "),
+            new Diff(Operation.Delete, "the"),
+            new Diff(Operation.Insert, "a"),
+            new Diff(Operation.Equal, " lazy")
+        };
+
+        const string expected = "jumps over the lazy";
+
+        // act
+        var actual = diffs.GetSourceText();
+
+        // assert
+        actual.Should().Be(expected);
+    }
+
+    [Fact]
+    public void GetSourceText_ShouldThrowArgumentNullException_WhenDiffsIsNull()
+    {
+        // arrange
+        // act
+        var act = () => DiffCollectionExtensions.GetSourceText(null!);
+
+        // assert
+        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("diffs");
     }
 }
